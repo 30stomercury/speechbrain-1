@@ -151,7 +151,6 @@ class TransformerASR(TransformerInterface):
             memory=encoder_out,
             tgt_mask=tgt_mask,
             tgt_key_padding_mask=tgt_key_padding_mask,
-            memory_key_padding_mask=src_key_padding_mask,
         )
 
         return encoder_out, decoder_out
@@ -228,3 +227,37 @@ class TransformerASR(TransformerInterface):
         for p in self.parameters():
             if p.dim() > 1:
                 torch.nn.init.xavier_normal_(p)
+
+
+class EncoderWrapper(nn.Module):
+    """This is a wrapper of any ASR transformer encoder. By default, the
+    TransformerASR .forward() function encodes and decodes. With this wrapper
+    the .forward() function becomes .encode() only.
+
+    Important: The TransformerASR class must contain a .encode() function.
+
+    Arguments
+    ----------
+    transformer : sb.lobes.models.TransformerInterface
+        A Transformer instance that contains a .encode() function.
+
+    Example
+    -------
+    >>> src = torch.rand([8, 120, 512])
+    >>> tgt = torch.randint(0, 720, [8, 120])
+    >>> net = TransformerASR(
+    ...     720, 512, 512, 8, 1, 1, 1024, activation=torch.nn.GELU
+    ... )
+    >>> encoder = EncoderWrapper(net)
+    >>> enc_out = encoder(src)
+    >>> enc_out.shape
+    torch.Size([8, 120, 512])
+    """
+
+    def __init__(self, transformer, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.transformer = transformer
+
+    def forward(self, x, wav_lens=None):
+        x = self.transformer.encode(x, wav_lens)
+        return x
