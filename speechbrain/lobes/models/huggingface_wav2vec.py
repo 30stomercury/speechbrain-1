@@ -74,6 +74,7 @@ class HuggingFaceWav2Vec2(nn.Module):
         freeze_feature_extractor=False,
         pretrain=True,
         apply_spec_augment=False,
+        num_hidden_layers=24,
     ):
         super().__init__()
 
@@ -88,6 +89,7 @@ class HuggingFaceWav2Vec2(nn.Module):
         # it it is True, we download and load them.
         if not (pretrain):
             config = Wav2Vec2Config.from_pretrained(source, cache_dir=save_path)
+            config.num_hidden_layers = num_hidden_layers
             self.model = Wav2Vec2Model(config)
         else:
             self.model = Wav2Vec2Model.from_pretrained(
