@@ -9,13 +9,18 @@ import os
 import shutil
 import subprocess
 import logging
-import textgrids
 import json
 import torchaudio
 import random
 from glob import glob
 
 from speechbrain.dataio.dataio import read_audio, write_audio
+
+# We check if transformers is installed.
+try:
+    import textgrids
+except ImportError:
+    print("Please install textgrids!")
 
 logger = logging.getLogger(__name__)
 
