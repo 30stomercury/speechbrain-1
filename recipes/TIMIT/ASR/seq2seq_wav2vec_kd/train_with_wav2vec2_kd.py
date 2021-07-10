@@ -21,7 +21,8 @@ import logging
 import speechbrain as sb
 from hyperpyyaml import load_hyperpyyaml
 from speechbrain.utils.distributed import run_on_main
-#os.environ["CUDA_VISIBLE_DEVICES"]=""
+
+# os.environ["CUDA_VISIBLE_DEVICES"]=""
 
 logger = logging.getLogger(__name__)
 
@@ -238,8 +239,10 @@ def dataio_prep(hparams):
     )
     if hparams["sorting"] == "ascending":
         # we sort training data to speed up training and get better results.
-        train_data = train_data.filtered_sorted(sort_key="duration",
-            key_max_value={"duration": hparams["avoid_if_longer_than"]})
+        train_data = train_data.filtered_sorted(
+            sort_key="duration",
+            key_max_value={"duration": hparams["avoid_if_longer_than"]},
+        )
         # when sorting do not shuffle in dataloader ! otherwise is pointless
         hparams["train_dataloader_opts"]["shuffle"] = False
 
@@ -371,8 +374,7 @@ if __name__ == "__main__":
     train_data, valid_data, test_data, label_encoder = dataio_prep(hparams)
 
     hparams["modules"]["student"].load_state_dict(
-            hparams["wav2vec2"].state_dict(), 
-            strict=False
+        hparams["wav2vec2"].state_dict(), strict=False
     )
 
     # Trainer initialization
@@ -393,11 +395,11 @@ if __name__ == "__main__":
         valid_loader_kwargs=hparams["valid_dataloader_opts"],
     )
 
-    #torch.save(asr_brain.modules.state_dict(), 'model.ckpt')
-    #torch.save(asr_brain.modules.state_dict(), 'quantized_model.ckpt')
-    #print(os.path.getsize('quantized_model.ckpt') >> 20)
-    #print(os.path.getsize('model.ckpt') >> 20)
-    #asr_brain.device = "cpu"
+    # torch.save(asr_brain.modules.state_dict(), 'model.ckpt')
+    # torch.save(asr_brain.modules.state_dict(), 'quantized_model.ckpt')
+    # print(os.path.getsize('quantized_model.ckpt') >> 20)
+    # print(os.path.getsize('model.ckpt') >> 20)
+    # asr_brain.device = "cpu"
 
     # Test
     asr_brain.evaluate(

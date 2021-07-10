@@ -127,20 +127,15 @@ class ASR(sb.Brain):
 
                     g_tea = g_batch.create_group(tea_name)
                     g_tea.create_dataset(
-                        "p_ctc_tea",
-                        data=tea_dict["p_ctc_tea"],
+                        "p_ctc_tea", data=tea_dict["p_ctc_tea"],
                     )
                     g_tea.create_dataset(
-                        "p_seq_tea",
-                        data=tea_dict["p_seq_tea"],
+                        "p_seq_tea", data=tea_dict["p_seq_tea"],
                     )
                     g_tea.create_dataset(
-                        "wer_ctc_tea",
-                        data=tea_dict["wer_ctc_tea"][0],
+                        "wer_ctc_tea", data=tea_dict["wer_ctc_tea"][0],
                     )
-                    g_tea.create_dataset(
-                        "wer_tea", data=tea_dict["wer_tea"][0]
-                    )
+                    g_tea.create_dataset("wer_tea", data=tea_dict["wer_tea"][0])
             self.step = 0
         f.close()
 
@@ -168,8 +163,10 @@ def data_io_prep(hparams):
     )
     if hparams["sorting"] == "ascending":
         # we sort training data to speed up training and get better results.
-        train_data = train_data.filtered_sorted(sort_key="duration",
-            key_max_value={"duration": hparams["avoid_if_longer_than"]})
+        train_data = train_data.filtered_sorted(
+            sort_key="duration",
+            key_max_value={"duration": hparams["avoid_if_longer_than"]},
+        )
         # when sorting do not shuffle in dataloader ! otherwise is pointless
         hparams["train_dataloader_opts"]["shuffle"] = False
 
