@@ -1,0 +1,132 @@
+# Seed needs to be set at top of yaml, before objects with parameters are made
+seed: 5678
+__set_seed: !apply:torch.manual_seed [!ref <seed>]
+output_folder: !ref results/augment_noise_CRDNN/<seed>
+save_folder: !ref <output_folder>/save
+
+# Data files
+tea_name: "wav2vec_small"
+data_folder: !PLACEHOLDER  # e.g. /path/to/TIMIT
+train_annotation: !ref <output_folder>/train.json
+valid_annotation: !ref <output_folder>/dev.json
+test_annotation: !ref <output_folder>/test.json
+
+# URL for the biggest Fairseq english wav2vec2 model.
+wav2vec2_hub: "facebook/wav2vec2-large-lv60"
+
+# Dataloader options
+train_dataloader_opts:
+    batch_size: !ref <batch_size>
+
+valid_dataloader_opts:
+    batch_size: !ref <batch_size>
+
+test_dataloader_opts:
+    batch_size: !ref <batch_size>
+
+# Training parameters
+lr: 0.0003
+lr_wav2vec: 0.0001
+number_of_epochs: 1
+batch_size: 8
+sorting: ascending
+avoid_if_longer_than: 6.0
+
+# Feature parameters
+sample_rate: 16000
+n_fft: 400
+n_mels: 40
+
+# Model parameters
+activation: !name:torch.nn.LeakyReLU
+dnn_layers: 1
+dnn_neurons: 128
+emb_size: 128
+dec_neurons: 128
+freeze_wav2vec: False
+
+# Outputs
+output_neurons: 40
+blank_index: !ref <output_neurons> - 1
+bos_index: !ref <output_neurons> - 1
+eos_index: !ref <output_neurons> - 1
+
+# Decoding parameters
+min_decode_ratio: 0.0
+max_decode_ratio: 1.0
+beam_size: 16
+eos_threshold: 1.5
+
+
+# distillation parameters
+# Temperature
+temperature: 1
+# distillation weight alpha
+alpha: 1
+# different stages in dataset
+stage: ["train", "valid", "test"]
+
+enc: !new:speechbrain.lobes.models.VanillaNN.VanillaNN
+    input_shape: [null, null, 1024]
+    activation: !ref <activation>
+    dnn_blocks: !ref <dnn_layers>
+    dnn_neurons: !ref <dnn_neurons>
+
+wav2vec2: !new:speechbrain.lobes.models.huggingface_wav2vec.HuggingFaceWav2Vec2
+    source: !ref <wav2vec2_hub>
+    output_norm: True
+    freeze: !ref <freeze_wav2vec>
+    save_path: !ref <save_folder>/wav2vec2_checkpoint
+
+emb: !new:speechbrain.nnet.embedding.Embedding
+    num_embeddings: !ref <output_neurons>
+    embedding_dim: !ref <emb_size>
+
+dec: !new:speechbrain.nnet.RNN.AttentionalRNNDecoder
+    enc_dim: !ref <dnn_neurons>
+    input_size: !ref <emb_size>
+    rnn_type: gru
+    attn_type: location
+    hidden_size: !ref <dec_neurons>
+    attn_dim: 256
+    num_layers: 1
+    scaling: 1.0
+    channels: 10
+    kernel_size: 100
+    re_init: True
+    dropout: 0.5
+
+ctc_lin: !new:speechbrain.nnet.linear.Linear
+    input_size: !ref <dnn_neurons>
+    n_neurons: !ref <output_neurons>  # 39 phonemes + 1 blank
+
+seq_lin: !new:speechbrain.nnet.linear.Linear
+    input_size: !ref <dec_neurons>
+    n_neurons: !ref <output_neurons>  # 39 phonemes + 1 eos
+
+model: !new:torch.nn.ModuleList
+    - [!ref <enc>, !ref <emb>, !ref <dec>, !ref <ctc_lin>, !ref <seq_lin>]
+
+log_softmax: !new:speechbrain.nnet.activations.Softmax
+    apply_log: True
+
+normalize: !new:speechbrain.processing.features.InputNormalization
+    norm_type: global
+
+epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
+    limit: !ref <number_of_epochs>
+
+modules:
+    wav2vec2: !ref <wav2vec2>
+    enc: !ref <enc>
+    emb: !ref <emb>
+    dec: !ref <dec>
+    ctc_lin: !ref <ctc_lin>
+    seq_lin: !ref <seq_lin>
+
+checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
+    checkpoints_dir: !ref <save_folder>
+    recoverables:
+        model: !ref <model>
+        wav2vec2: !ref <wav2vec2>
+        counter: !ref <epoch_counter>
