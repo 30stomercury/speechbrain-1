@@ -30,7 +30,7 @@ lr_wav2vec: 0.0001
 number_of_epochs: 1
 batch_size: 8
 sorting: ascending
-avoid_if_longer_than: 6.0
+avoid_if_longer_than: 16.0
 
 # Feature parameters
 sample_rate: 16000
@@ -38,11 +38,18 @@ n_fft: 400
 n_mels: 40
 
 # Model parameters
+#activation: !name:torch.nn.LeakyReLU
+#dnn_layers: 1
+#dnn_neurons: 128
+#emb_size: 128
+#dec_neurons: 128
+#freeze_wav2vec: False
+# Model parameters
 activation: !name:torch.nn.LeakyReLU
-dnn_layers: 1
-dnn_neurons: 128
+dnn_layers: 2
+dnn_neurons: 1024
 emb_size: 128
-dec_neurons: 128
+dec_neurons: 256
 freeze_wav2vec: False
 
 # Outputs

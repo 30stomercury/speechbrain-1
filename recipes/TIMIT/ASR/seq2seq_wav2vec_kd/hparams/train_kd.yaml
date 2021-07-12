@@ -1,5 +1,5 @@
 # Seed needs to be set at top of yaml, before objects with parameters are made
-seed: 1234
+seed: 5678
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
 output_folder: !ref results/augment_CRDNN/<seed>
 wer_file: !ref <output_folder>/wer.txt
@@ -96,14 +96,14 @@ student: !new:speechbrain.lobes.models.huggingface_wav2vec.HuggingFaceWav2Vec2
     source: !ref <wav2vec2_hub>
     output_norm: True
     pretrain: False
-    freeze: !ref <freeze_wav2vec>
+    freeze: False
     save_path: !ref <save_folder>/student_checkpoint
     num_hidden_layers: 12
 
 enc: !new:speechbrain.lobes.models.VanillaNN.VanillaNN
     input_shape: [null, null, 1024]
     activation: !ref <activation>
-    dnn_blocks: !ref <dnn_layers>
+    dnn_blocks: !ref <dnn_blocks>
     dnn_neurons: !ref <dnn_neurons>
 
 emb: !new:speechbrain.nnet.embedding.Embedding

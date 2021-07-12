@@ -24,8 +24,6 @@ import h5py
 import numpy as np
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-
 
 # Define training procedure
 class ASR(sb.Brain):
