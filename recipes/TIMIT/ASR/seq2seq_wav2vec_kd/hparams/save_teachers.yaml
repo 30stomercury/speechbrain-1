@@ -1,11 +1,10 @@
 # Seed needs to be set at top of yaml, before objects with parameters are made
-seed: 5678
+seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
 output_folder: !ref results/augment_noise_CRDNN/<seed>
 save_folder: !ref <output_folder>/save
 
 # Data files
-tea_name: "wav2vec_small"
 data_folder: !PLACEHOLDER  # e.g. /path/to/TIMIT
 train_annotation: !ref <output_folder>/train.json
 valid_annotation: !ref <output_folder>/dev.json
@@ -25,6 +24,7 @@ test_dataloader_opts:
     batch_size: !ref <batch_size>
 
 # Training parameters
+tea_name: "wav2vec_small"
 lr: 0.0003
 lr_wav2vec: 0.0001
 number_of_epochs: 1
@@ -46,10 +46,10 @@ dec_neurons: 128
 freeze_wav2vec: False
 
 # Outputs
-output_neurons: 40
-blank_index: !ref <output_neurons> - 1
-bos_index: !ref <output_neurons> - 1
-eos_index: !ref <output_neurons> - 1
+output_neurons: 42 # 39phs+blank+eos+bos
+bos_index: 0
+eos_index: 1
+blank_index: 2
 
 # Decoding parameters
 min_decode_ratio: 0.0
