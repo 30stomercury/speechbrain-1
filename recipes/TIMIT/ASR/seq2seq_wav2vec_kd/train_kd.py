@@ -37,8 +37,7 @@ class ASR(sb.Brain):
             if hasattr(self.hparams, "augmentation"):
                 wavs = self.hparams.augmentation(wavs, wav_lens)
 
-        feats = self.hparams.compute_features(wavs)
-        feats = self.modules.normalize(feats, wav_lens)
+        feats = self.modules.student(wavs)
         x = self.modules.enc(feats)
 
         # output layer for ctc log-probabilities
