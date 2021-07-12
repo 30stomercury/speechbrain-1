@@ -370,7 +370,7 @@ if __name__ == "__main__":
         kwargs={
             "data_folder": hparams["data_folder"],
             "save_json_train": hparams["train_annotation"],
-            "save_json_dev": hparams["valid_annotation"],
+            "save_json_valid": hparams["valid_annotation"],
             "save_json_test": hparams["test_annotation"],
             "save_json_unlabeled": hparams["unlabeled_annotation"],
             "skip_prep": hparams["skip_prep"],
