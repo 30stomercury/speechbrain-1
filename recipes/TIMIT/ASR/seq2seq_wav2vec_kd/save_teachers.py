@@ -22,6 +22,9 @@ from hyperpyyaml import load_hyperpyyaml
 from tqdm.contrib import tqdm
 import h5py
 import numpy as np
+import os
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 # Define training procedure
@@ -103,6 +106,11 @@ class ASR(sb.Brain):
         return tea_dict
 
     def fit_save(self, train_set, valid_set=None, test_set=None):
+        # Load latest checkpoint
+        if self.checkpointer is not None:
+            self.checkpointer.recover_if_possible(
+                device=torch.device(self.device)
+            )
         data_sets = [train_set, valid_set, test_set]
         stage = self.hparams.stage
 
