@@ -39,7 +39,7 @@ word_dict = "word.dict"
 def prepare_myst(
     data_folder,
     save_json_train,
-    save_json_dev,
+    save_json_valid,
     save_json_test,
     save_json_unlabeled,
     word_dict=None,
