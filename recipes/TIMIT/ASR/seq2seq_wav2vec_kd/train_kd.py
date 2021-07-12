@@ -410,10 +410,16 @@ if __name__ == "__main__":
     asr_brain.valid_dict = valid_dict
     asr_brain.test_dict = test_dict
 
+    """
     if hparams["pretrain"]:
         # load pre-trained student model except last layer
         if hparams["epoch_counter"].current == 0:
             st_load(hparams, asr_brain)
+    """
+
+    hparams["modules"]["student"].load_state_dict(
+        hparams["wav2vec2"].state_dict(), strict=False
+    )
 
     # Training/validation loop
     asr_brain.fit(
