@@ -160,11 +160,12 @@ def prepare_sub_folder(
                 )
 
                 skip = False
+
+                if "NO_SIGNAL" in wrds:
+                    skip = True
+
                 if remove_non_speech_event:
                     if "<" in wrds and ">" in wrds:
-                        skip = True
-
-                    if "NO_SIGNAL" in wrds:
                         skip = True
 
                 if remove_truncated_words:
@@ -179,6 +180,8 @@ def prepare_sub_folder(
                 phns = []
                 try:
                     for wrd in wrds:
+                        if "<" in wrd or "(" in wrd or TRUNCATED_WORDS in wrd:
+                            continue
                         phns += lexicon2phn[wrd]
 
                     phns = " ".join(phns)
