@@ -11,12 +11,11 @@ import subprocess
 import logging
 import json
 import torchaudio
-import random
 from glob import glob
 
 from speechbrain.dataio.dataio import read_audio, write_audio
 
-# We check if transformers is installed.
+# We check if textgrids is installed.
 try:
     import textgrids
 except ImportError:
@@ -99,11 +98,6 @@ def prepare_syllabus(
     text_grids_ids = []
     for i, f in enumerate(text_grids):
         text_grids_id = f.split("/")[-1]
-        # dst = os.path.join(save_folder, text_grids_id)
-
-        # if not os.path.exists(dst):
-        #     shutil.copy(f, dst)
-
         text_grids[i] = f
         text_grids_ids.append(text_grids_id.split(".TextGrid")[0])
 
@@ -130,7 +124,6 @@ def prepare_syllabus(
         else:
             text_grids_filtered.append(text_grids[i])
 
-    random.shuffle(text_grids_filtered)
     text_grids_filtered_train = text_grids_filtered[:-3]
     text_grids_filtered_dev = [text_grids_filtered[-3]]
     text_grids_filtered_test = text_grids_filtered[-2:]
