@@ -23,9 +23,6 @@ valid_annotation: !ref <output_folder>/dev.json
 test_annotation: !ref <output_folder>/test.json
 # unlabeled_annotation: !ref <data_folder>/unlabeled.json
 skip_prep: False # Skip data preparation
-# remove_non_speech_event: True
-# remove_unintelligible: True
-# remove_truncated_words: True
 
 # Training parameters
 number_of_epochs: 30
