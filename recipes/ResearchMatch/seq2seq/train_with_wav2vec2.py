@@ -272,7 +272,6 @@ def dataio_prep(hparams):
     )
     test_data = test_data.filtered_sorted(sort_key="duration")
 
-    # datasets = [train_data, valid_data, test_data]
     datasets = [train_data, valid_data, test_data]
     label_encoder = sb.dataio.encoder.CTCTextEncoder()
 
@@ -322,7 +321,7 @@ def dataio_prep(hparams):
     }
     label_encoder.load_or_create(
         path=lab_enc_file,
-        from_didatasets=[test_data],
+        from_didatasets=[train_data],
         output_key="phn_list",
         special_labels=special_labels,
         sequence_input=True,
