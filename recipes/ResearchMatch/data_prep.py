@@ -258,6 +258,8 @@ def create_json(
     msg = "Creating %s..." % (json_file)
     logger.info(msg)
     json_dict = {}
+    # Writing phn to the text file for ngramlm training
+    f = open(json_file.replace("json", "txt"), "w")
 
     for key, val in clips.items():
         snt_id = key
@@ -270,12 +272,10 @@ def create_json(
             "duration": val["duration"],
             "phn": val["transcribed word"],
         }
-
+        f.write(val["transcribed word"] + "\n")
+    f.close()
     # Writing the dictionary to the json file
     with open(json_file, mode="w") as json_f:
         json.dump(json_dict, json_f, indent=2)
 
     logger.info(f"{json_file} successfully created!")
-
-
-# prepare_syllabus("/home/mila/j/jianyuan.zhong/ResearchMatch/Syllables_rep/", "/home/mila/j/jianyuan.zhong/ResearchMatch/Syllables_rep_prepared")
