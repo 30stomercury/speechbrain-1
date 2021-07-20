@@ -160,13 +160,14 @@ def process_text_grid(text_grids, use_fields):
                 for syll in tg[field]:
                     # Convert Praat to Unicode in the label
                     label = syll.text.transcode()
+                    print(label)
 
                     # Conver IPA syllabus to CMU phones
                     if len(label) > 0:
                         result = subprocess.run(
                             [
                                 "python",
-                                "lexconvert.py",
+                                "/home/mila/s/sung-lin.yeh/workspace/internship/speechbrain-1/recipes/ResearchMatch/lexconvert.py",
                                 "--phones2phones",
                                 "unicode-ipa",
                                 "cmu",
@@ -174,6 +175,7 @@ def process_text_grid(text_grids, use_fields):
                             ],
                             capture_output=True,
                         )
+                        print("result", result)
                         phones = (
                             result.stdout.decode("UTF-8")
                             .strip()
