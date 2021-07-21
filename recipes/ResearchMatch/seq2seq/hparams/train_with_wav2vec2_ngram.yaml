@@ -7,7 +7,7 @@
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 4568
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/wav2vec_v2_RM/<seed>
+output_folder: !ref results/pretrained_wav2vec_RM_2/<seed>
 wer_file: !ref <output_folder>/wer.txt
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
@@ -135,6 +135,17 @@ seq_cost: !name:speechbrain.nnet.losses.nll_loss
     label_smoothing: 0.1
 
 # Scorer
+ngramlm_scorer: !new:speechbrain.decoders.scorer.NGramLMScorer
+    lm_path: "ngram_lm/lm_syllables_kenlm_6gram.bin"
+    vocab_size: !ref <output_neurons>
+    token_list: [
+        '<blank>', '<s>', '</s>', 'N', 'ER', 'JH', 'IY',
+        'OW', 'IH', 'T', 'S', 'L', 'R', 'AH', 'G', 'NG',
+        'DH', 'W', 'AE', 'K', 'Z', 'M', 'D', 'EY', 'CH',
+        'OY', 'P', 'UW', 'AO', 'TH', 'AA', 'F', 'Y', 'HH',
+        'V', 'SH', 'AW', 'UH', 'ZH', 'B', 'AY', 'EH', 'NONE', 'NONE'
+    ]
+
 ctc_scorer: !new:speechbrain.decoders.scorer.CTCScorer
     eos_index: !ref <eos_index>
     blank_index: !ref <blank_index>
@@ -144,12 +155,11 @@ coverage_scorer: !new:speechbrain.decoders.scorer.CoverageScorer
     vocab_size: !ref <output_neurons>
 
 scorer: !new:speechbrain.decoders.scorer.ScorerBuilder
-    full_scorers: [
-        !ref <coverage_scorer>]
-    partial_scorers: [!ref <ctc_scorer>]
+    scorer_beam_scale: 2.0
+    partial_scorers: [!ref <ctc_scorer>, !ref <ngramlm_scorer>]
     weights:
-        coverage: 0.0
-        ctc: 0.60
+        ctc: 0.9
+        ngramlm: 0.5
 
 greedy_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNGreedySearcher
     embedding: !ref <emb>
