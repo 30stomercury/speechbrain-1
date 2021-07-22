@@ -346,6 +346,23 @@ def dataio_prep(hparams):
     return train_data, valid_data, test_data, label_encoder
 
 
+def load_pretrain(asr_brain):
+    """
+    load pre-trained model for fine-tuning.
+    """
+    print("loading pre-trained model...")
+    ckpt_path = asr_brain.hparams.pretrain_dir + "/model.ckpt"
+    wav2vec2_ckpt_path = asr_brain.hparams.pretrain_dir + "/wav2vec2.ckpt"
+    weight_dict = torch.load(ckpt_path)
+    wav2vec2_weight_dict = torch.load(wav2vec2_ckpt_path)
+
+    # loading weights
+    asr_brain.hparams.model.load_state_dict(weight_dict, strict=False)
+    asr_brain.hparams.wav2vec2.load_state_dict(
+        wav2vec2_weight_dict, strict=False
+    )
+
+
 if __name__ == "__main__":
     # CLI:
     hparams_file, run_opts, overrides = sb.parse_arguments(sys.argv[1:])
@@ -394,6 +411,10 @@ if __name__ == "__main__":
         checkpointer=hparams["checkpointer"],
     )
     asr_brain.label_encoder = label_encoder
+
+    # Load pretrained model here
+    if hasattr(asr_brain.hparams, "pretrain_dir"):
+        load_pretrain(asr_brain, hparams)
 
     # Training/validation loop
     asr_brain.fit(
