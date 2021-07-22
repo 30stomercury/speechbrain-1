@@ -309,7 +309,7 @@ def dataio_prep(hparams):
 
     # 3. Fit encoder:
     # Load or compute the label encoder
-    lab_enc_file = os.path.join(hparams["save_folder"], "label_encoder.txt")
+    lab_enc_file = os.path.join(hparams["pretrain_save_folder"], "label_encoder.txt")
     special_labels = {
         "bos_label": hparams["bos_index"],
         "eos_label": hparams["eos_index"],
@@ -388,6 +388,7 @@ if __name__ == "__main__":
             "train_json_file": hparams["train_annotation"],
             "val_json_file": hparams["valid_annotation"],
             "skip_prep": hparams["skip_prep"],
+            "val_chunk": hparams["val_set"],
         },
     )
 
@@ -405,7 +406,7 @@ if __name__ == "__main__":
 
     # Load pretrained model here
     if hasattr(asr_brain.hparams, "pretrain_dir"):
-        load_pretrain(asr_brain, hparams)
+        load_pretrain(asr_brain)
 
     # Training/validation loop
     asr_brain.fit(

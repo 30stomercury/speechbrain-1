@@ -4,10 +4,13 @@
 # * Titouan Parcollet 2021
 # ################################
 
+# Validation set
+val_set: "chunk3"
+
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 4568
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/pretrained_wav2vec_RM_2/<seed>
+output_folder: !ref results/pretrained_wav2vec_syllables_2/<val_set>/<seed>
 wer_file: !ref <output_folder>/wer.txt
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
@@ -16,7 +19,8 @@ train_log: !ref <output_folder>/train_log.txt
 wav2vec2_hub: "facebook/wav2vec2-large-lv60"
 
 # Pretrained model dir
-pretrain_dir: results/wav2vec_2/<seed>/save
+pretrain_save_folder: "results/wav2vec_v2/4568/save"
+pretrain_dir: !ref <pretrain_save_folder>/CKPT+2021-07-16+16-08-29+00
 
 # Data files
 data_folder: !PLACEHOLDER  # e.g. /path/to/TIMIT
@@ -30,14 +34,14 @@ number_of_epochs: 30
 batch_size: 8
 lr: 0.0003
 lr_wav2vec: 0.0001
-ctc_weight: 0.2
+ctc_weight: 0.9
 sorting: ascending
 auto_mix_prec: False
 sample_rate: 16000
 
 # Model parameters
 activation: !name:torch.nn.LeakyReLU
-dnn_layers: 2
+dnn_layers: 1 #2
 dnn_neurons: 1024
 emb_size: 128
 dec_neurons: 256
@@ -130,16 +134,16 @@ seq_cost: !name:speechbrain.nnet.losses.nll_loss
     label_smoothing: 0.1
 
 # Scorer
-ngramlm_scorer: !new:speechbrain.decoders.scorer.NGramLMScorer
-    lm_path: "ngram_lm/lm_syllables_kenlm_6gram.bin"
-    vocab_size: !ref <output_neurons>
-    token_list: [
-        '<blank>', '<s>', '</s>', 'N', 'ER', 'JH', 'IY',
-        'OW', 'IH', 'T', 'S', 'L', 'R', 'AH', 'G', 'NG',
-        'DH', 'W', 'AE', 'K', 'Z', 'M', 'D', 'EY', 'CH',
-        'OY', 'P', 'UW', 'AO', 'TH', 'AA', 'F', 'Y', 'HH',
-        'V', 'SH', 'AW', 'UH', 'ZH', 'B', 'AY', 'EH', 'NONE', 'NONE'
-    ]
+#ngramlm_scorer: !new:speechbrain.decoders.scorer.NGramLMScorer
+#    lm_path: "ngram_lm/lm_syllables_kenlm_6gram.bin"
+#    vocab_size: !ref <output_neurons>
+#    token_list: [
+#        '<blank>', '<s>', '</s>', 'N', 'ER', 'JH', 'IY',
+#        'OW', 'IH', 'T', 'S', 'L', 'R', 'AH', 'G', 'NG',
+#        'DH', 'W', 'AE', 'K', 'Z', 'M', 'D', 'EY', 'CH',
+#        'OY', 'P', 'UW', 'AO', 'TH', 'AA', 'F', 'Y', 'HH',
+#        'V', 'SH', 'AW', 'UH', 'ZH', 'B', 'AY', 'EH', 'NONE', 'NONE'
+#    ]
 
 ctc_scorer: !new:speechbrain.decoders.scorer.CTCScorer
     eos_index: !ref <eos_index>
@@ -151,10 +155,11 @@ coverage_scorer: !new:speechbrain.decoders.scorer.CoverageScorer
 
 scorer: !new:speechbrain.decoders.scorer.ScorerBuilder
     scorer_beam_scale: 2.0
-    partial_scorers: [!ref <ctc_scorer>, !ref <ngramlm_scorer>]
+    #partial_scorers: [!ref <ctc_scorer>, !ref <ngramlm_scorer>]
+    partial_scorers: [!ref <ctc_scorer>]
     weights:
         ctc: 0.9
-        ngramlm: 0.5
+        #ngramlm: 0.5
 
 greedy_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNGreedySearcher
     embedding: !ref <emb>
