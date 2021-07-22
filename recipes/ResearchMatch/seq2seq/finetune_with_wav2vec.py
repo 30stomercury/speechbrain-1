@@ -401,8 +401,6 @@ if __name__ == "__main__":
     # Dataset IO prep: creating Dataset objects and proper encodings for phones
     train_data, valid_data, test_data, label_encoder = dataio_prep(hparams)
 
-    print(label_encoder.lab2ind)
-
     # Trainer initialization
     asr_brain = ASR(
         modules=hparams["modules"],
@@ -411,6 +409,9 @@ if __name__ == "__main__":
         checkpointer=hparams["checkpointer"],
     )
     asr_brain.label_encoder = label_encoder
+
+    # Load pretrained model here
+    load_pretrain(asr_brain, hparams)
 
     # Training/validation loop
     asr_brain.fit(
