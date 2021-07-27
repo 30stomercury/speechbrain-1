@@ -5,12 +5,12 @@
 # ################################
 
 # Validation set
-val_set: "chunk3"
+val_set: "chunk1"
 
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 4568
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/pretrained_wav2vec_syllables_2/<val_set>/<seed>
+output_folder: !ref results/pretrained_wav2vec_syllables_1/<val_set>/<seed>
 wer_file: !ref <output_folder>/wer.txt
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
@@ -41,7 +41,7 @@ sample_rate: 16000
 
 # Model parameters
 activation: !name:torch.nn.LeakyReLU
-dnn_layers: 1 #2
+dnn_layers: 2
 dnn_neurons: 1024
 emb_size: 128
 dec_neurons: 256
@@ -134,16 +134,16 @@ seq_cost: !name:speechbrain.nnet.losses.nll_loss
     label_smoothing: 0.1
 
 # Scorer
-#ngramlm_scorer: !new:speechbrain.decoders.scorer.NGramLMScorer
-#    lm_path: "ngram_lm/lm_syllables_kenlm_6gram.bin"
-#    vocab_size: !ref <output_neurons>
-#    token_list: [
-#        '<blank>', '<s>', '</s>', 'N', 'ER', 'JH', 'IY',
-#        'OW', 'IH', 'T', 'S', 'L', 'R', 'AH', 'G', 'NG',
-#        'DH', 'W', 'AE', 'K', 'Z', 'M', 'D', 'EY', 'CH',
-#        'OY', 'P', 'UW', 'AO', 'TH', 'AA', 'F', 'Y', 'HH',
-#        'V', 'SH', 'AW', 'UH', 'ZH', 'B', 'AY', 'EH', 'NONE', 'NONE'
-#    ]
+ngramlm_scorer: !new:speechbrain.decoders.scorer.NGramLMScorer
+    lm_path: !ref <output_folder>/lm_syllables_kenlm_6gram.arpa
+    vocab_size: !ref <output_neurons>
+    token_list: [
+        '<blank>', '<s>', '</s>', 'N', 'ER', 'JH', 'IY',
+        'OW', 'IH', 'T', 'S', 'L', 'R', 'AH', 'G', 'NG',
+        'DH', 'W', 'AE', 'K', 'Z', 'M', 'D', 'EY', 'CH',
+        'OY', 'P', 'UW', 'AO', 'TH', 'AA', 'F', 'Y', 'HH',
+        'V', 'SH', 'AW', 'UH', 'ZH', 'B', 'AY', 'EH', 'IX', 'TS'
+    ]
 
 ctc_scorer: !new:speechbrain.decoders.scorer.CTCScorer
     eos_index: !ref <eos_index>
@@ -155,11 +155,11 @@ coverage_scorer: !new:speechbrain.decoders.scorer.CoverageScorer
 
 scorer: !new:speechbrain.decoders.scorer.ScorerBuilder
     scorer_beam_scale: 2.0
-    #partial_scorers: [!ref <ctc_scorer>, !ref <ngramlm_scorer>]
-    partial_scorers: [!ref <ctc_scorer>]
+    partial_scorers: [!ref <ctc_scorer>, !ref <ngramlm_scorer>]
+    #partial_scorers: [!ref <ctc_scorer>]
     weights:
         ctc: 0.9
-        #ngramlm: 0.5
+        ngramlm: 0.5
 
 greedy_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNGreedySearcher
     embedding: !ref <emb>
