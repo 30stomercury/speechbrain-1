@@ -40,8 +40,8 @@ sample_rate: 16000
 activation: !name:torch.nn.LeakyReLU
 dnn_layers: 1
 dnn_neurons: 1024
-emb_size: 128
-dec_neurons: 256
+emb_size: 512
+dec_neurons: 512
 freeze_wav2vec: False
 
 # Outputs
@@ -94,7 +94,7 @@ wav2vec2: !new:speechbrain.lobes.models.huggingface_wav2vec.HuggingFaceWav2Vec2
     freeze: !ref <freeze_wav2vec>
     pretrain: False
     save_path: !ref <save_folder>/wav2vec2_checkpoint
-    num_hidden_layers: 18
+    num_hidden_layers: 16
 
 #####
 # Uncomment this block if you prefer to use a Fairseq pretrained model instead
@@ -155,7 +155,8 @@ coverage_scorer: !new:speechbrain.decoders.scorer.CoverageScorer
 
 scorer: !new:speechbrain.decoders.scorer.ScorerBuilder
     scorer_beam_scale: 2.0
-    partial_scorers: [!ref <ctc_scorer>, !ref <coverage_scorer>]
+    full_scorers: [!ref <coverage_scorer>]
+    partial_scorers: [!ref <ctc_scorer>]
     weights:
         ctc: 0.4
         coverage: 1.0
