@@ -350,6 +350,16 @@ def load_pretrain(asr_brain):
     weight_dict = torch.load(ckpt_path)
     wav2vec2_weight_dict = torch.load(wav2vec2_ckpt_path)
 
+    """
+    keys = []
+    for k in weight_dict:
+        keys.append(k)
+    for k in keys:
+        if k.startswith("3") or k.startswith("4"):
+            del weight_dict[k]
+    print(weight_dict.keys())
+    """
+
     # loading weights
     asr_brain.hparams.model.load_state_dict(weight_dict, strict=False)
     asr_brain.hparams.wav2vec2.load_state_dict(
