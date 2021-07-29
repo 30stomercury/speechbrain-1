@@ -20,7 +20,8 @@ import sys
 import torch
 import logging
 import speechbrain as sb
-import torchaudio
+
+# import torchaudio
 from hyperpyyaml import load_hyperpyyaml
 from speechbrain.utils.distributed import run_on_main
 from speechbrain.utils.data_utils import undo_padding
@@ -40,10 +41,11 @@ class ASR(sb.Brain):
             if hasattr(self.hparams, "augmentation"):
                 wavs = self.hparams.augmentation(wavs, wav_lens)
 
-        feats = self.hparams.compute_features(
-            wavs, num_mel_bins=self.hparams.n_mels
-        )
-        # feats = self.hparams.compute_features(wavs)
+        # feats = self.hparams.compute_features(
+        #    wavs, num_mel_bins=self.hparams.n_mels
+        # )
+        # print(wavs.shape)
+        feats = self.hparams.compute_features(wavs)
         print(feats.shape)
         feats = self.modules.normalize(feats, wav_lens)
         x = self.modules.enc(feats)
@@ -376,7 +378,7 @@ if __name__ == "__main__":
     asr_brain.label_encoder = label_encoder
 
     # Define feat extractor with vtln
-    asr_brain.hparams.compute_features = torchaudio.compliance.kaldi.fbank
+    # asr_brain.hparams.compute_features = torchaudio.compliance.kaldi.fbank
 
     # Training/validation loop
     asr_brain.fit(
