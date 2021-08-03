@@ -88,6 +88,7 @@ class Fbank(torch.nn.Module):
         filter_shape="triangular",
         param_change_factor=1.0,
         param_rand_factor=0.0,
+        vtln_warp_factor=1.0,
         left_frames=5,
         right_frames=5,
         win_length=25,
@@ -117,6 +118,7 @@ class Fbank(torch.nn.Module):
             filter_shape=filter_shape,
             param_change_factor=param_change_factor,
             param_rand_factor=param_rand_factor,
+            vtln_warp_factor=vtln_warp_factor,
         )
         self.compute_deltas = Deltas(input_size=n_mels)
         self.context_window = ContextWindow(

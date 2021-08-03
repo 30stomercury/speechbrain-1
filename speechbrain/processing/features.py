@@ -427,6 +427,7 @@ class Filterbank(torch.nn.Module):
         top_db=80.0,
         param_change_factor=1.0,
         param_rand_factor=0.0,
+        vtln_warp_factor=1.0,
         freeze=True,
     ):
         super().__init__()
@@ -447,6 +448,7 @@ class Filterbank(torch.nn.Module):
         self.device_inp = torch.device("cpu")
         self.param_change_factor = param_change_factor
         self.param_rand_factor = param_rand_factor
+        self.vtln_warp_factor = vtln_warp_factor
 
         if self.power_spectrogram == 2:
             self.multiplier = 10
@@ -471,6 +473,28 @@ class Filterbank(torch.nn.Module):
         band = hz[1:] - hz[:-1]
         self.band = band[:-1]
         self.f_central = hz[1:-1]
+        self.f_left = hz[:-2]
+        self.f_right = hz[2:]
+
+        if self.vtln_warp_factor != 1.0:
+            self.f_center = vtln_warp_freq(
+                self.f_central,
+                low_freq=self.f_min,
+                high_freq=self.f_max,
+                vtln_warp_factor=self.vtln_warp_factor,
+            )
+            self.f_left = vtln_warp_freq(
+                self.f_left,
+                low_freq=self.f_min,
+                high_freq=self.f_max,
+                vtln_warp_factor=self.vtln_warp_factor,
+            )
+            self.f_right = vtln_warp_freq(
+                self.f_right,
+                low_freq=self.f_min,
+                high_freq=self.f_max,
+                vtln_warp_factor=self.vtln_warp_factor,
+            )
 
         # Adding the central frequency and the band to the list of nn param
         if not self.freeze:
@@ -497,6 +521,12 @@ class Filterbank(torch.nn.Module):
         """
         # Computing central frequency and bandwidth of each filter
         f_central_mat = self.f_central.repeat(
+            self.all_freqs_mat.shape[1], 1
+        ).transpose(0, 1)
+        f_left_mat = self.f_left.repeat(
+            self.all_freqs_mat.shape[1], 1
+        ).transpose(0, 1)
+        f_right_mat = self.f_right.repeat(
             self.all_freqs_mat.shape[1], 1
         ).transpose(0, 1)
         band_mat = self.band.repeat(self.all_freqs_mat.shape[1], 1).transpose(
@@ -531,9 +561,9 @@ class Filterbank(torch.nn.Module):
             f_central_mat = f_central_mat * rand_change[0]
             band_mat = band_mat * rand_change[1]
 
-        fbank_matrix = self._create_fbank_matrix(f_central_mat, band_mat).to(
-            spectrogram.device
-        )
+        fbank_matrix = self._create_fbank_matrix(
+            f_left_mat, f_central_mat, f_right_mat, band_mat
+        ).to(spectrogram.device)
 
         sp_shape = spectrogram.shape
 
@@ -583,7 +613,7 @@ class Filterbank(torch.nn.Module):
         """
         return 700 * (10 ** (mel / 2595) - 1)
 
-    def _triangular_filters(self, all_freqs, f_central, band):
+    def _triangular_filters(self, all_freqs, f_left, f_central, f_right, band):
         """Returns fbank matrix using triangular filters.
 
         Arguments
@@ -596,16 +626,28 @@ class Filterbank(torch.nn.Module):
             Tensor gathering the bands of each filter.
         """
 
-        # Computing the slops of the filters
-        slope = (all_freqs - f_central) / band
-        left_side = slope + 1.0
-        right_side = -slope + 1.0
+        # size (num_bins, num_fft_bins)
+        left_side = (all_freqs - f_left) / (f_central - f_left)
+        right_side = (f_right - all_freqs) / (f_right - f_central)
 
-        # Adding zeros for negative values
-        zero = torch.zeros(1, device=self.device_inp)
-        fbank_matrix = torch.max(
-            zero, torch.min(left_side, right_side)
-        ).transpose(0, 1)
+        if self.vtln_warp_factor == 1.0:
+            # Adding zeros for negative values
+            zero = torch.zeros(1, device=self.device_inp)
+            fbank_matrix = torch.max(
+                zero, torch.min(left_side, right_side)
+            ).transpose(0, 1)
+        else:
+            # warping can move the order of left_mel, center_mel, right_mel anywhere
+            fbank_matrix = torch.zeros_like(left_side)
+            up_idx = torch.gt(all_freqs, f_left) & torch.le(
+                all_freqs, f_central
+            )  # left_mel < mel <= center_mel
+            down_idx = torch.gt(all_freqs, f_central) & torch.lt(
+                all_freqs, f_right
+            )  # center_mel < mel < right_mel
+            fbank_matrix[up_idx] = left_side[up_idx]
+            fbank_matrix[down_idx] = right_side[down_idx]
+            fbank_matrix = fbank_matrix.transpose(0, 1)
 
         return fbank_matrix
 
@@ -657,7 +699,9 @@ class Filterbank(torch.nn.Module):
 
         return fbank_matrix
 
-    def _create_fbank_matrix(self, f_central_mat, band_mat):
+    def _create_fbank_matrix(
+        self, f_left_mat, f_central_mat, f_right_mat, band_mat
+    ):
         """Returns fbank matrix to use for averaging the spectrum with
            the set of filter-banks.
 
@@ -673,7 +717,11 @@ class Filterbank(torch.nn.Module):
         """
         if self.filter_shape == "triangular":
             fbank_matrix = self._triangular_filters(
-                self.all_freqs_mat, f_central_mat, band_mat
+                self.all_freqs_mat,
+                f_left_mat,
+                f_central_mat,
+                f_right_mat,
+                band_mat,
             )
 
         elif self.filter_shape == "rectangular":
@@ -1211,3 +1259,84 @@ class InputNormalization(torch.nn.Module):
         del end_of_epoch  # Unused here.
         stats = torch.load(path, map_location=device)
         self._load_statistics_dict(stats)
+
+
+def vtln_warp_freq(
+    freq,
+    vtln_low_cutoff=100.0,
+    vtln_high_cutoff=-500.0,
+    low_freq=0,
+    high_freq=8000,
+    vtln_warp_factor=1.0,
+):
+    r"""This computes a VTLN warping function that is not the same as HTK's one,
+    but has similar inputs (this function has the advantage of never producing
+    empty bins).
+
+    This function computes a warp function F(freq), defined between low_freq
+    and high_freq inclusive, with the following properties:
+        F(low_freq) == low_freq
+        F(high_freq) == high_freq
+    The function is continuous and piecewise linear with two inflection
+        points.
+    The lower inflection point (measured in terms of the unwarped
+        frequency) is at frequency l, determined as described below.
+    The higher inflection point is at a frequency h, determined as
+        described below.
+    If l <= f <= h, then F(f) = f/vtln_warp_factor.
+    If the higher inflection point (measured in terms of the unwarped
+        frequency) is at h, then max(h, F(h)) == vtln_high_cutoff.
+        Since (by the last point) F(h) == h/vtln_warp_factor, then
+        max(h, h/vtln_warp_factor) == vtln_high_cutoff, so
+        h = vtln_high_cutoff / max(1, 1/vtln_warp_factor).
+          = vtln_high_cutoff * min(1, vtln_warp_factor).
+    If the lower inflection point (measured in terms of the unwarped
+        frequency) is at l, then min(l, F(l)) == vtln_low_cutoff
+        This implies that l = vtln_low_cutoff / min(1, 1/vtln_warp_factor)
+                            = vtln_low_cutoff * max(1, vtln_warp_factor)
+    Args:
+        vtln_low_cutoff (float): Lower frequency cutoffs for VTLN
+        vtln_high_cutoff (float): Upper frequency cutoffs for VTLN
+        low_freq (float): Lower frequency cutoffs in mel computation
+        high_freq (float): Upper frequency cutoffs in mel computation
+        vtln_warp_factor (float): Vtln warp factor
+        freq (Tensor): given frequency in Hz
+
+    Returns:
+        Tensor: Freq after vtln warp
+    """
+    assert (
+        vtln_low_cutoff > low_freq
+    ), "be sure to set the vtln_low option higher than low_freq"
+    assert (
+        vtln_high_cutoff < high_freq
+    ), "be sure to set the vtln_high option lower than high_freq [or negative]"
+    l = vtln_low_cutoff * max(1.0, vtln_warp_factor)  # noqa
+    h = vtln_high_cutoff * min(1.0, vtln_warp_factor)
+    scale = 1.0 / vtln_warp_factor
+    Fl = scale * l  # F(l)
+    Fh = scale * h  # F(h)
+    assert l > low_freq and h < high_freq
+    # slope of left part of the 3-piece linear function
+    scale_left = (Fl - low_freq) / (l - low_freq)
+    # [slope of center part is just "scale"]
+
+    # slope of right part of the 3-piece linear function
+    scale_right = (high_freq - Fh) / (high_freq - h)
+
+    res = torch.empty_like(freq)
+
+    outside_low_high_freq = torch.lt(freq, low_freq) | torch.gt(
+        freq, high_freq
+    )  # freq < low_freq || freq > high_freq
+    before_l = torch.lt(freq, l)  # freq < l
+    before_h = torch.lt(freq, h)  # freq < h
+    after_h = torch.ge(freq, h)  # freq >= h
+
+    # order of operations matter here (since there is overlapping frequency regions)
+    res[after_h] = high_freq + scale_right * (freq[after_h] - high_freq)
+    res[before_h] = scale * freq[before_h]
+    res[before_l] = low_freq + scale_left * (freq[before_l] - low_freq)
+    res[outside_low_high_freq] = freq[outside_low_high_freq]
+
+    return res
