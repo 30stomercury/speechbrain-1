@@ -46,7 +46,6 @@ class ASR(sb.Brain):
         # )
         # print(wavs.shape)
         feats = self.hparams.compute_features(wavs)
-        print(feats.shape)
         feats = self.modules.normalize(feats, wav_lens)
         x = self.modules.enc(feats)
 
@@ -63,7 +62,8 @@ class ASR(sb.Brain):
 
         hyps = None
         if stage != sb.Stage.TRAIN:
-            topk_tokens, topk_lens, _, _ = self.hparams.beam_searcher(
+            searcher = getattr(self.hparams, stage.name.lower()+"_searcher")
+            topk_tokens, topk_lens, _, _ = searcher(
                 x, wav_lens
             )
 
@@ -120,13 +120,13 @@ class ASR(sb.Brain):
             per = self.per_metrics.summarize("error_rate")
 
         if stage == sb.Stage.VALID:
-            old_lr_adam, new_lr_adam = self.hparams.lr_annealing_adam(per)
+            old_lr, new_lr = self.hparams.lr_annealing(per)
             sb.nnet.schedulers.update_learning_rate(
-                self.adam_optimizer, new_lr_adam
+                self.optimizer, new_lr
             )
 
             self.hparams.train_logger.log_stats(
-                stats_meta={"epoch": epoch, "lr_adam": old_lr_adam},
+                stats_meta={"epoch": epoch, "lr": old_lr},
                 train_stats={"loss": self.train_loss},
                 valid_stats={
                     "loss": stage_loss,
@@ -180,17 +180,17 @@ class ASR(sb.Brain):
         # Managing automatic mixed precision
         if self.auto_mix_prec:
 
-            self.adam_optimizer.zero_grad()
+            self.optimizer.zero_grad()
 
             with torch.cuda.amp.autocast():
                 outputs = self.compute_forward(batch, sb.Stage.TRAIN)
                 loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
 
             self.scaler.scale(loss).backward()
-            self.scaler.unscale_(self.adam_optimizer)
+            self.scaler.unscale_(self.optimizer)
 
             if self.check_gradients(loss):
-                self.scaler.step(self.adam_optimizer)
+                self.scaler.step(self.optimizer)
 
             self.scaler.update()
         else:
@@ -200,19 +200,11 @@ class ASR(sb.Brain):
             loss.backward()
 
             if self.check_gradients(loss):
-                self.adam_optimizer.step()
+                self.optimizer.step()
 
-            self.adam_optimizer.zero_grad()
+            self.optimizer.zero_grad()
 
         return loss.detach().cpu()
-
-    def init_optimizers(self):
-        self.adam_optimizer = self.hparams.adam_opt_class(
-            self.hparams.model.parameters()
-        )
-
-        if self.checkpointer is not None:
-            self.checkpointer.add_recoverable("adam_opt", self.adam_optimizer)
 
 
 def dataio_prep(hparams):
@@ -371,6 +363,7 @@ if __name__ == "__main__":
     # Trainer initialization
     asr_brain = ASR(
         modules=hparams["modules"],
+        opt_class=hparams["opt_class"],
         hparams=hparams,
         run_opts=run_opts,
         checkpointer=hparams["checkpointer"],

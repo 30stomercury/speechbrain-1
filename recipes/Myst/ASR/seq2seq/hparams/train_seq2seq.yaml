@@ -7,7 +7,7 @@
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 4568
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/myst_seq2seq/<seed>
+output_folder: !ref results/myst_seq2seq_3/<seed>
 wer_file: !ref <output_folder>/wer.txt
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
@@ -24,10 +24,10 @@ remove_unintelligible: True
 remove_truncated_words: True
 
 # Training parameters
-number_of_epochs: 20
+number_of_epochs: 25
 batch_size: 8
-lr: 0.0003
-ctc_weight: 0.2
+lr: 1.0
+ctc_weight: 0.5
 sorting: ascending
 auto_mix_prec: False
 
@@ -40,7 +40,7 @@ n_mels: 40
 activation: !name:torch.nn.LeakyReLU
 dropout: 0.15
 cnn_blocks: 2
-cnn_channels: (64, 128)
+cnn_channels: (128, 256) #(64, 128)
 inter_layer_pooling_size: (2, 2)
 cnn_kernelsize: (3, 3)
 time_pooling_size: 4
@@ -48,13 +48,13 @@ rnn_class: !name:speechbrain.nnet.RNN.LSTM
 rnn_layers: 4
 rnn_neurons: 1024
 rnn_bidirectional: True
-dnn_blocks: 1
+dnn_blocks: 2 #1 #2
 dnn_neurons: 1024
-emb_size: 1024
-dec_neurons: 1024
+emb_size: 1024 #512
+dec_neurons: 1024 #256
 
 # Outputs
-output_neurons: 42 # 39phs+blank+eos+bos
+output_neurons: 44 # 39phs+blank+eos+bos
 bos_index: 1
 eos_index: 2
 blank_index: 0
@@ -82,10 +82,10 @@ augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
 normalize: !new:speechbrain.processing.features.InputNormalization
     norm_type: global
 
-#compute_features: !new:speechbrain.lobes.features.Fbank
-#   sample_rate: !ref <sample_rate>
-#   n_fft: !ref <n_fft>
-#   n_mels: !ref <n_mels>
+compute_features: !new:speechbrain.lobes.features.Fbank
+   sample_rate: !ref <sample_rate>
+   n_fft: !ref <n_fft>
+   n_mels: !ref <n_mels>
 
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
     limit: !ref <number_of_epochs>
@@ -156,12 +156,13 @@ coverage_scorer: !new:speechbrain.decoders.scorer.CoverageScorer
 
 scorer: !new:speechbrain.decoders.scorer.ScorerBuilder
     scorer_beam_scale: 2.0
-    partial_scorers: [!ref <ctc_scorer>, !ref <coverage_scorer>]
+    partial_scorers: [!ref <ctc_scorer>]
+    full_scorers: [!ref <coverage_scorer>]
     weights:
-        ctc: 0.4
+        ctc: 0.3
         coverage: 1.0
 
-greedy_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNGreedySearcher
+valid_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNBeamSearcher
     embedding: !ref <emb>
     decoder: !ref <dec>
     linear: !ref <seq_lin>
@@ -169,8 +170,11 @@ greedy_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNGreedySearcher
     eos_index: !ref <eos_index>
     min_decode_ratio: !ref <min_decode_ratio>
     max_decode_ratio: !ref <max_decode_ratio>
+    beam_size: 8
+    vocab_size: !ref <output_neurons>
+    temperature: 1.15
 
-beam_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNBeamSearcher
+test_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNBeamSearcher
     embedding: !ref <emb>
     decoder: !ref <dec>
     linear: !ref <seq_lin>
@@ -186,10 +190,12 @@ beam_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNBeamSearcher
 model: !new:torch.nn.ModuleList
     - [!ref <enc>, !ref <emb>, !ref <dec>, !ref <ctc_lin>, !ref <seq_lin>]
 
-adam_opt_class: !name:torch.optim.Adam
-    lr: !ref <lr>
+opt_class: !name:torch.optim.Adadelta
+   lr: !ref <lr>
+   rho: 0.95
+   eps: 1.e-8
 
-lr_annealing_adam: !new:speechbrain.nnet.schedulers.NewBobScheduler
+lr_annealing: !new:speechbrain.nnet.schedulers.NewBobScheduler
     initial_value: !ref <lr>
     improvement_threshold: 0.0025
     annealing_factor: 0.8
@@ -207,7 +213,7 @@ checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
     checkpoints_dir: !ref <save_folder>
     recoverables:
         model: !ref <model>
-        lr_annealing_adam: !ref <lr_annealing_adam>
+        lr_annealing: !ref <lr_annealing>
         counter: !ref <epoch_counter>
 
 train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
