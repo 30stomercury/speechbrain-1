@@ -7,7 +7,8 @@
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 4568
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/wav2vec_v2_RM/<seed>
+#output_folder: !ref results/wav2vec_v2_RM/<seed>
+output_folder: !ref results/pretrained_wav2vec_RM_2/<seed>
 wer_file: !ref <output_folder>/wer.txt
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
@@ -25,7 +26,7 @@ test_annotation: !ref <output_folder>/test.json
 skip_prep: False # Skip data preparation
 
 # Training parameters
-number_of_epochs: 30
+number_of_epochs: 50
 batch_size: 8
 lr: 0.0003
 lr_wav2vec: 0.0001

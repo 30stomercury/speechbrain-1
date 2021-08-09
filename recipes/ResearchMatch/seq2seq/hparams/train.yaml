@@ -1,57 +1,70 @@
 # ################################
-# Model: seq2seq ASR on TIMIT with CRDNN (with LiGRU)
+# Model: seq2seq ASR on TIMIT with wav2vec2 + CTC/Attention
 # Authors:
-# * Mirco Ravanelli 2020
-# * Ju-Chieh Chou 2020
-# * Abdel Heba 2020
+# * Titouan Parcollet 2021
 # ################################
 
+# Validation set
+val_set: !PLACEHOLDER #"chunk1"
+
 # Seed needs to be set at top of yaml, before objects with parameters are made
-seed: 1234
+seed: 4568
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/augment_noise_CRDNN/<seed>
+output_folder: !ref results/pretrained_seq2seq_syllables_1/<val_set>/<seed>
 wer_file: !ref <output_folder>/wer.txt
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
 
+# Pretrained model dir
+pretrain_save_folder: "results/myst_seq2seq/4568/save"
+pretrain_dir: !ref <pretrain_save_folder>/CKPT+2021-07-29+23-18-38+00
+#pretrain_save_folder: "results/myst_seq2seq_2/4568/save"               
+#pretrain_dir: !ref <pretrain_save_folder>/CKPT+2021-07-30+00-59-47+00
+#pretrain_save_folder: "results/myst_seq2seq_3/4568/save"               
+#pretrain_dir: !ref <pretrain_save_folder>/CKPT+2021-07-31+08-27-24+00
+
 # Data files
 data_folder: !PLACEHOLDER  # e.g. /path/to/TIMIT
+data_prep_loc: !ref <data_folder>/../data_prep_loc
 train_annotation: !ref <output_folder>/train.json
-valid_annotation: !ref <output_folder>/dev.json
-test_annotation: !ref <output_folder>/test.json
+valid_annotation: !ref <output_folder>/val.json
 skip_prep: False # Skip data preparation
 
 # Training parameters
-number_of_epochs: 50
-batch_size: 8
-lr: 0.0003
-ctc_weight: 0.2
+number_of_epochs: 30
+batch_size: 4
+lr: 0.8
+ctc_weight: 0.9
 sorting: ascending
+auto_mix_prec: False
 
 # Feature parameters
-sample_rate: 16000
 n_fft: 400
 n_mels: 40
+sample_rate: 16000
 
 # Model parameters
 activation: !name:torch.nn.LeakyReLU
 dropout: 0.15
 cnn_blocks: 2
-cnn_channels: (128, 256)
+cnn_channels: (64, 128) #(128, 256)
+inter_layer_pooling_size: (2, 2)
 cnn_kernelsize: (3, 3)
+time_pooling_size: 4
+rnn_class: !name:speechbrain.nnet.RNN.LSTM
 rnn_layers: 4
-rnn_neurons: 512
+rnn_neurons: 1024
 rnn_bidirectional: True
-dnn_blocks: 2
-dnn_neurons: 512
-emb_size: 128
-dec_neurons: 256
+dnn_blocks: 1 #2
+dnn_neurons: 1024
+emb_size: 1024 #512
+dec_neurons: 1024 #256
 
 # Outputs
-output_neurons: 42 # 39phs+blank+eos+bos
-bos_index: 0
-eos_index: 1
-blank_index: 2
+output_neurons: 44 # 39phs+blank+eos+bos
+bos_index: 1
+eos_index: 2
+blank_index: 0
 
 # Decoding parameters
 min_decode_ratio: 0.0
@@ -66,9 +79,6 @@ train_dataloader_opts:
 valid_dataloader_opts:
     batch_size: !ref <batch_size>
 
-test_dataloader_opts:
-    batch_size: !ref <batch_size>
-
 augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
     sample_rate: !ref <sample_rate>
     speeds: [95, 100, 105]
@@ -76,14 +86,14 @@ augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
 normalize: !new:speechbrain.processing.features.InputNormalization
     norm_type: global
 
+compute_features: !new:speechbrain.lobes.features.Fbank
+   sample_rate: !ref <sample_rate>
+   n_fft: !ref <n_fft>
+   n_mels: !ref <n_mels>
+   vtln_warp_factor: 0.4
+
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
     limit: !ref <number_of_epochs>
-
-
-compute_features: !new:speechbrain.lobes.features.Fbank
-    sample_rate: !ref <sample_rate>
-    n_fft: !ref <n_fft>
-    n_mels: !ref <n_mels>
 
 enc: !new:speechbrain.lobes.models.CRDNN.CRDNN
     input_shape: [null, null, !ref <n_mels>]
@@ -92,12 +102,18 @@ enc: !new:speechbrain.lobes.models.CRDNN.CRDNN
     cnn_blocks: !ref <cnn_blocks>
     cnn_channels: !ref <cnn_channels>
     cnn_kernelsize: !ref <cnn_kernelsize>
+    inter_layer_pooling_size: !ref <inter_layer_pooling_size>
     time_pooling: True
+    using_2d_pooling: False
+    time_pooling_size: !ref <time_pooling_size>
+    rnn_class: !ref <rnn_class>
     rnn_layers: !ref <rnn_layers>
     rnn_neurons: !ref <rnn_neurons>
     rnn_bidirectional: !ref <rnn_bidirectional>
+    rnn_re_init: True
     dnn_blocks: !ref <dnn_blocks>
     dnn_neurons: !ref <dnn_neurons>
+    use_rnnp: True
 
 emb: !new:speechbrain.nnet.embedding.Embedding
     num_embeddings: !ref <output_neurons>
@@ -115,7 +131,8 @@ dec: !new:speechbrain.nnet.RNN.AttentionalRNNDecoder
     channels: 10
     kernel_size: 100
     re_init: True
-    dropout: 0.5
+    dropout: 0.9
+
 
 ctc_lin: !new:speechbrain.nnet.linear.Linear
     input_size: !ref <dnn_neurons>
@@ -134,38 +151,63 @@ ctc_cost: !name:speechbrain.nnet.losses.ctc_loss
 seq_cost: !name:speechbrain.nnet.losses.nll_loss
     label_smoothing: 0.1
 
-greedy_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNGreedySearcher
-    embedding: !ref <emb>
-    decoder: !ref <dec>
-    linear: !ref <seq_lin>
-    bos_index: !ref <bos_index>
+# Scorer
+#ngramlm_scorer: !new:speechbrain.decoders.scorer.NGramLMScorer
+#    lm_path: "ngram_lm/lm_syllables_kenlm_6gram.bin"
+#    vocab_size: !ref <output_neurons>
+#    token_list: [
+#        '<blank>', '<s>', '</s>', 'N', 'ER', 'JH', 'IY',
+#        'OW', 'IH', 'T', 'S', 'L', 'R', 'AH', 'G', 'NG',
+#        'DH', 'W', 'AE', 'K', 'Z', 'M', 'D', 'EY', 'CH',
+#        'OY', 'P', 'UW', 'AO', 'TH', 'AA', 'F', 'Y', 'HH',
+#        'V', 'SH', 'AW', 'UH', 'ZH', 'B', 'AY', 'EH', 'NONE', 'NONE'
+#    ]
+
+ctc_scorer: !new:speechbrain.decoders.scorer.CTCScorer
     eos_index: !ref <eos_index>
-    min_decode_ratio: !ref <min_decode_ratio>
-    max_decode_ratio: !ref <max_decode_ratio>
+    blank_index: !ref <blank_index>
+    ctc_fc: !ref <ctc_lin>
+
+coverage_scorer: !new:speechbrain.decoders.scorer.CoverageScorer
+    vocab_size: !ref <output_neurons>
+
+scorer: !new:speechbrain.decoders.scorer.ScorerBuilder
+    scorer_beam_scale: 1.0
+    #partial_scorers: [!ref <ctc_scorer>, !ref <ngramlm_scorer>]
+    #full_scorers: [!ref <ctc_scorer>, !ref <coverage_scorer>]
+    full_scorers: [!ref <ctc_scorer>]
+    weights:
+        ctc: 0.2
+        #ngramlm: 0.5
+        #coverage: 0.5
 
 beam_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNBeamSearcher
     embedding: !ref <emb>
     decoder: !ref <dec>
     linear: !ref <seq_lin>
-    ctc_linear: !ref <ctc_lin>
     bos_index: !ref <bos_index>
     eos_index: !ref <eos_index>
-    blank_index: !ref <blank_index>
     min_decode_ratio: !ref <min_decode_ratio>
     max_decode_ratio: !ref <max_decode_ratio>
     beam_size: !ref <beam_size>
+    vocab_size: !ref <output_neurons>
+    temperature: 1.15
+    scorer: !ref <scorer>
 
-model: !new:torch.nn.ModuleList
-    - [!ref <enc>, !ref <emb>, !ref <dec>, !ref <ctc_lin>, !ref <seq_lin>]
 
-opt_class: !name:torch.optim.Adam
-    lr: !ref <lr>
+opt_class: !name:torch.optim.Adadelta
+   lr: !ref <lr>
+   rho: 0.95
+   eps: 1.e-8
 
 lr_annealing: !new:speechbrain.nnet.schedulers.NewBobScheduler
     initial_value: !ref <lr>
     improvement_threshold: 0.0025
     annealing_factor: 0.8
     patient: 0
+
+model: !new:torch.nn.ModuleList
+    - [!ref <enc>, !ref <emb>, !ref <dec>, !ref <ctc_lin>, !ref <seq_lin>]
 
 modules:
     enc: !ref <enc>
@@ -175,14 +217,10 @@ modules:
     seq_lin: !ref <seq_lin>
     normalize: !ref <normalize>
 
-# Compile the encoder (to speed up training)
-jit_module_keys: [enc]
-
 checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
     checkpoints_dir: !ref <save_folder>
     recoverables:
         model: !ref <model>
-        normalize: !ref <normalize>
         lr_annealing: !ref <lr_annealing>
         counter: !ref <epoch_counter>
 
