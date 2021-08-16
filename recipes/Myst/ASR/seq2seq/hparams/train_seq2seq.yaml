@@ -7,7 +7,8 @@
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 4568
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/myst_seq2seq_3/<seed>
+#output_folder: !ref results/myst_seq2seq_new_fbank_vtlp/<seed>
+output_folder: !ref results/myst_ctc_new_fbank_80_vtlp/<seed>
 wer_file: !ref <output_folder>/wer.txt
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
@@ -18,14 +19,14 @@ train_annotation: !ref <output_folder>/train.json
 valid_annotation: !ref <output_folder>/dev.json
 test_annotation: !ref <output_folder>/test.json
 unlabeled_annotation: !ref <save_folder>/unlabeled.json
-skip_prep: False # Skip data preparation
+skip_prep: True # Skip data preparation
 remove_non_speech_event: True
 remove_unintelligible: True
 remove_truncated_words: True
 
 # Training parameters
-number_of_epochs: 25
-batch_size: 8
+number_of_epochs: 40
+batch_size: 1 #8
 lr: 1.0
 ctc_weight: 0.5
 sorting: ascending
@@ -34,13 +35,13 @@ auto_mix_prec: False
 # Feature parameters
 sample_rate: 16000
 n_fft: 400
-n_mels: 40
+n_mels: 80
 
 # Model parameters
 activation: !name:torch.nn.LeakyReLU
 dropout: 0.15
 cnn_blocks: 2
-cnn_channels: (128, 256) #(64, 128)
+cnn_channels: (64, 128)
 inter_layer_pooling_size: (2, 2)
 cnn_kernelsize: (3, 3)
 time_pooling_size: 4
@@ -48,7 +49,7 @@ rnn_class: !name:speechbrain.nnet.RNN.LSTM
 rnn_layers: 4
 rnn_neurons: 1024
 rnn_bidirectional: True
-dnn_blocks: 2 #1 #2
+dnn_blocks: 1 #1 #2
 dnn_neurons: 1024
 emb_size: 1024 #512
 dec_neurons: 1024 #256
@@ -77,7 +78,8 @@ test_dataloader_opts:
 
 augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
     sample_rate: !ref <sample_rate>
-    speeds: [95, 100, 105]
+    #speeds: [95, 100, 105]
+    speeds: [90, 100, 110]
 
 normalize: !new:speechbrain.processing.features.InputNormalization
     norm_type: global
@@ -86,6 +88,7 @@ compute_features: !new:speechbrain.lobes.features.Fbank
    sample_rate: !ref <sample_rate>
    n_fft: !ref <n_fft>
    n_mels: !ref <n_mels>
+   #vtlp: True
 
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
     limit: !ref <number_of_epochs>
@@ -156,10 +159,10 @@ coverage_scorer: !new:speechbrain.decoders.scorer.CoverageScorer
 
 scorer: !new:speechbrain.decoders.scorer.ScorerBuilder
     scorer_beam_scale: 2.0
-    partial_scorers: [!ref <ctc_scorer>]
-    full_scorers: [!ref <coverage_scorer>]
+    #partial_scorers: [!ref <ctc_scorer>]
+    full_scorers: [!ref <ctc_scorer>, !ref <coverage_scorer>]
     weights:
-        ctc: 0.3
+        ctc: 1.0 #0.3
         coverage: 1.0
 
 valid_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNBeamSearcher
@@ -170,7 +173,7 @@ valid_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNBeamSearcher
     eos_index: !ref <eos_index>
     min_decode_ratio: !ref <min_decode_ratio>
     max_decode_ratio: !ref <max_decode_ratio>
-    beam_size: 8
+    beam_size: 5
     vocab_size: !ref <output_neurons>
     temperature: 1.15
 
