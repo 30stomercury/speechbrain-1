@@ -81,6 +81,9 @@ def prepare_syllabus(
     skip_prep=False,
     val_chunk="Chunk1",
 ):
+    if os.path.exists(train_json_file) and os.path.exists(val_json_file)  and os.path.exists(save_folder):
+        return
+
     text_grids = glob(
         os.path.join(data_folder, "**/*.TextGrid"), recursive=True
     )
@@ -211,31 +214,32 @@ def process_audio_files(clips, audio_files, save_folder):
     audio_files = set(audio_files)
 
     for key, val in clips.items():
-        text_grid = val["TextGrid"]
-
-        audio_file_name = os.path.join(
-            save_folder, text_grid.split(".TextGrid")[0].split("/")[-1] + ".wav"
-        )
-        if not os.path.exists(audio_file_name):
-            audio_file_name = os.path.join(
-                save_folder,
-                text_grid.split(".TextGrid")[0].split("/")[-1] + ".mp3",
-            )
-
-        # read the corresponding portion
-        _, sr = torchaudio.load(audio_file_name)
-
-        start = int(val["start"] * sr)
-        stop = int(val["end"] * sr)
-        wav_obj = {"file": audio_file_name, "start": start, "stop": stop}
-        data = read_audio(wav_obj)
-
-        # downsample to 16000 khz
-        resampled = torchaudio.transforms.Resample(sr, 16000)(data)
-
-        # save the file to disk
         file_name = os.path.join(save_folder, key + ".wav")
-        write_audio(file_name, resampled, 16000)
+        if not os.path.exists(file_name):
+            text_grid = val["TextGrid"]
+
+            audio_file_name = os.path.join(
+                save_folder, text_grid.split(".TextGrid")[0].split("/")[-1] + ".wav"
+            )
+            if not os.path.exists(audio_file_name):
+                audio_file_name = os.path.join(
+                    save_folder,
+                    text_grid.split(".TextGrid")[0].split("/")[-1] + ".mp3",
+                )
+
+            # read the corresponding portion
+            _, sr = torchaudio.load(audio_file_name)
+
+            start = int(val["start"] * sr)
+            stop = int(val["end"] * sr)
+            wav_obj = {"file": audio_file_name, "start": start, "stop": stop}
+            data = read_audio(wav_obj)
+
+            # downsample to 16000 khz
+            resampled = torchaudio.transforms.Resample(sr, 16000)(data)
+
+            # save the file to disk
+            write_audio(file_name, resampled, 16000)
 
         # save the file name
         clips[key]["file"] = file_name
