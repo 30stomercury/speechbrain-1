@@ -5,6 +5,7 @@ Authors
  * Peter Plantinga 2020
 """
 import torch
+import random
 from speechbrain.processing.features import (
     STFT,
     spectral_magnitude,
@@ -93,11 +94,13 @@ class Fbank(torch.nn.Module):
         right_frames=5,
         win_length=25,
         hop_length=10,
+        vtlp=False,
     ):
         super().__init__()
         self.deltas = deltas
         self.context = context
         self.requires_grad = requires_grad
+        self.vtlp =vtlp
 
         if f_max is None:
             f_max = sample_rate / 2
@@ -137,6 +140,11 @@ class Fbank(torch.nn.Module):
 
             STFT = self.compute_STFT(wav)
             mag = spectral_magnitude(STFT)
+
+            if self.vtlp:
+                x = [0.9, 0.925, 0.95, 0.975, 1.   , 1.025, 1.05 , 1.075, 1.1  , 1.125, 1.15 , 1.175, 1.2  ]
+                self.compute_fbanks.vtln_warp_factor = random.choice(x)
+
             fbanks = self.compute_fbanks(mag)
 
             if self.deltas:
