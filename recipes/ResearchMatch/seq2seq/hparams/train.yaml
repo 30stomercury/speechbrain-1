@@ -10,18 +10,20 @@ val_set: !PLACEHOLDER #"chunk1"
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 4568
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/pretrained_seq2seq_syllables_1/<val_set>/<seed>
+output_folder: !ref results/pretrained_seq2seq_syllables_new_fbank_vtln_1.1/<val_set>/<seed>
 wer_file: !ref <output_folder>/wer.txt
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
 
 # Pretrained model dir
-pretrain_save_folder: "results/myst_seq2seq/4568/save"
-pretrain_dir: !ref <pretrain_save_folder>/CKPT+2021-07-29+23-18-38+00
+#pretrain_save_folder: "results/myst_seq2seq/4568/save"
+#pretrain_dir: !ref <pretrain_save_folder>/CKPT+2021-07-29+23-18-38+00
 #pretrain_save_folder: "results/myst_seq2seq_2/4568/save"               
 #pretrain_dir: !ref <pretrain_save_folder>/CKPT+2021-07-30+00-59-47+00
 #pretrain_save_folder: "results/myst_seq2seq_3/4568/save"               
 #pretrain_dir: !ref <pretrain_save_folder>/CKPT+2021-07-31+08-27-24+00
+pretrain_save_folder: "results/myst_seq2seq_new_fbank/4568/save"
+pretrain_dir: !ref <pretrain_save_folder>/CKPT+2021-08-09+20-17-00+00
 
 # Data files
 data_folder: !PLACEHOLDER  # e.g. /path/to/TIMIT
@@ -90,7 +92,7 @@ compute_features: !new:speechbrain.lobes.features.Fbank
    sample_rate: !ref <sample_rate>
    n_fft: !ref <n_fft>
    n_mels: !ref <n_mels>
-   vtln_warp_factor: 0.4
+   vtln_warp_factor: 1.1
 
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
     limit: !ref <number_of_epochs>
@@ -152,16 +154,16 @@ seq_cost: !name:speechbrain.nnet.losses.nll_loss
     label_smoothing: 0.1
 
 # Scorer
-#ngramlm_scorer: !new:speechbrain.decoders.scorer.NGramLMScorer
-#    lm_path: "ngram_lm/lm_syllables_kenlm_6gram.bin"
-#    vocab_size: !ref <output_neurons>
-#    token_list: [
-#        '<blank>', '<s>', '</s>', 'N', 'ER', 'JH', 'IY',
-#        'OW', 'IH', 'T', 'S', 'L', 'R', 'AH', 'G', 'NG',
-#        'DH', 'W', 'AE', 'K', 'Z', 'M', 'D', 'EY', 'CH',
-#        'OY', 'P', 'UW', 'AO', 'TH', 'AA', 'F', 'Y', 'HH',
-#        'V', 'SH', 'AW', 'UH', 'ZH', 'B', 'AY', 'EH', 'NONE', 'NONE'
-#    ]
+ngramlm_scorer: !new:speechbrain.decoders.scorer.NGramLMScorer
+    lm_path: !ref <output_folder>/lm_syllables_kenlm_6gram.arpa
+    vocab_size: !ref <output_neurons>
+    token_list: [
+        '<blank>', '<s>', '</s>', 'N', 'ER', 'JH', 'IY',
+        'OW', 'IH', 'T', 'S', 'L', 'R', 'AH', 'G', 'NG',
+        'DH', 'W', 'AE', 'K', 'Z', 'M', 'D', 'EY', 'CH',
+        'OY', 'P', 'UW', 'AO', 'TH', 'AA', 'F', 'Y', 'HH',
+        'V', 'SH', 'AW', 'UH', 'ZH', 'B', 'AY', 'EH', 'IX', 'TS'
+    ]
 
 ctc_scorer: !new:speechbrain.decoders.scorer.CTCScorer
     eos_index: !ref <eos_index>
@@ -173,12 +175,12 @@ coverage_scorer: !new:speechbrain.decoders.scorer.CoverageScorer
 
 scorer: !new:speechbrain.decoders.scorer.ScorerBuilder
     scorer_beam_scale: 1.0
-    #partial_scorers: [!ref <ctc_scorer>, !ref <ngramlm_scorer>]
+    partial_scorers: [!ref <ngramlm_scorer>]
     #full_scorers: [!ref <ctc_scorer>, !ref <coverage_scorer>]
     full_scorers: [!ref <ctc_scorer>]
     weights:
         ctc: 0.2
-        #ngramlm: 0.5
+        ngramlm: 0.5
         #coverage: 0.5
 
 beam_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNBeamSearcher
