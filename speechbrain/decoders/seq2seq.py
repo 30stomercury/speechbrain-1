@@ -893,7 +893,7 @@ class S2STransformerBeamSearcher(S2SBeamSearcher):
             )
         # Append the predicted token of the previous step to existing memory.
         memory = torch.cat([memory, inp_tokens.unsqueeze(1)], dim=-1)
-        pred, attn = self.model.decode(memory, enc_states)
+        pred, attn = self.model.decode(memory, enc_states, enc_lens)
         prob_dist = self.softmax(self.fc(pred) / self.temperature)
         return prob_dist[:, -1, :], memory, attn
 
