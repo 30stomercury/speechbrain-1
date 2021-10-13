@@ -16,6 +16,7 @@ import functools
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.distributions import Categorical
 from itertools import permutations
 from speechbrain.dataio.dataio import length_to_mask
 from speechbrain.decoders.ctc import filter_ctc_output
@@ -1039,7 +1040,7 @@ def ce_kd(inp, target):
     target : torch.Tensor
         The probabilities from teacher model, of shape [batch_size * length, feature]
     """
-    return (-target * inp).sum(1)
+    return torch.mean((-target * inp).sum(1))
 
 
 def nll_loss_kd(
@@ -1095,3 +1096,25 @@ def nll_loss_kd(
     # Loss averaging
     loss = torch.sum(loss.reshape(N_snt, max_len) * mask) / torch.sum(mask)
     return loss
+
+def ce_loss(inp, target, reduction="mean"):
+    """Simple version of distillation for cross-entropy loss.
+
+    Arguments
+    ---------
+    inp : torch.Tensor
+        The probabilities from student model, of shape [batch_size * length, feature]
+    target : torch.Tensor
+        The probabilities from teacher model, of shape [batch_size * length, feature]
+    """
+    ce = (-target * torch.log(inp+1e-23)).sum(1)
+    if reduction == "sum":
+	    return torch.sum(ce)
+    elif reduction == "batch":
+	    return ce
+
+    return torch.mean(ce)
+
+def entropy(p):
+    "Entropy of average probs"
+    return Categorical(probs=torch.mean(p, 0)).entropy()
