@@ -702,12 +702,15 @@ class Brain:
                     "Cannot specify both shuffle=True "
                     "and a sampler in loader_kwargs"
                 )
-            sampler = ReproducibleRandomSampler(dataset)
+            replacement = loader_kwargs.get("replacement", True)
+            sampler = ReproducibleRandomSampler(dataset, replacement)
             self.train_sampler = sampler
             loader_kwargs["sampler"] = self.train_sampler
             # Delete the shuffle flag, since you cannot specify both a sampler and
             # shuffling:
             del loader_kwargs["shuffle"]
+            # Delete the replacement flag as well:
+            del loader_kwargs["replacement"]
 
         # Possibly make a DistributedSampler or a wrapper for some other sampler
         if self.distributed_launch and not isinstance(dataset, IterableDataset):

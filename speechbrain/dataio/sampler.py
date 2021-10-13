@@ -81,14 +81,14 @@ class ReproducibleRandomSampler(RandomSampler):
 
     """
 
-    def __init__(self, data_source, seed=563375142, epoch=0, **kwargs):
+    def __init__(self, data_source, replacement=False, seed=563375142, epoch=0, **kwargs):
         if "generator" in kwargs:
             MSG = (
                 "Cannot give a separate generator when using "
                 + "ReproducibleRandomSampler"
             )
             raise ValueError(MSG)
-        super().__init__(data_source, **kwargs)
+        super().__init__(data_source, replacement, **kwargs)
         self.seed = int(seed)
         self.epoch = epoch
         self.generator = torch.Generator()
