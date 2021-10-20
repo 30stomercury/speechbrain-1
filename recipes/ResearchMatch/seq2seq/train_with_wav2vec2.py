@@ -268,13 +268,7 @@ def dataio_prep(hparams):
     )
     valid_data = valid_data.filtered_sorted(sort_key="duration")
 
-    test_data = sb.dataio.dataset.DynamicItemDataset.from_json(
-        json_path=hparams["test_annotation"],
-        replacements={"data_root": data_folder},
-    )
-    test_data = test_data.filtered_sorted(sort_key="duration")
-
-    datasets = [train_data, valid_data, test_data]
+    datasets = [train_data, valid_data]
     label_encoder = sb.dataio.encoder.CTCTextEncoder()
 
     # 2. Define audio pipeline:
@@ -315,7 +309,7 @@ def dataio_prep(hparams):
 
     # 3. Fit encoder:
     # Load or compute the label encoder
-    lab_enc_file = os.path.join(hparams["save_folder"], "label_encoder.txt")
+    lab_enc_file = os.path.join(hparams["pretrain_save_folder"], "label_encoder.txt")
     special_labels = {
         "bos_label": hparams["bos_index"],
         "eos_label": hparams["eos_index"],
@@ -343,7 +337,7 @@ def dataio_prep(hparams):
         ],
     )
 
-    return train_data, valid_data, test_data, label_encoder
+    return train_data, valid_data, label_encoder
 
 
 def load_pretrain(asr_brain):
@@ -355,6 +349,16 @@ def load_pretrain(asr_brain):
     wav2vec2_ckpt_path = asr_brain.hparams.pretrain_dir + "/wav2vec2.ckpt"
     weight_dict = torch.load(ckpt_path)
     wav2vec2_weight_dict = torch.load(wav2vec2_ckpt_path)
+
+    """
+    keys = []
+    for k in weight_dict:
+        keys.append(k)
+    for k in keys:
+        if k.startswith("3") or k.startswith("4"):
+            del weight_dict[k]
+    print(weight_dict.keys())
+    """
 
     # loading weights
     asr_brain.hparams.model.load_state_dict(weight_dict, strict=False)
@@ -372,7 +376,7 @@ if __name__ == "__main__":
         hparams = load_hyperpyyaml(fin, overrides)
 
     # Dataset prep (parsing TIMIT and annotation into csv files)
-    from data_prep import prepare_syllabus  # noqa
+    from data_prep_cv import prepare_syllabus  # noqa
 
     # Initialize ddp (useful only for multi-GPU DDP training)
     sb.utils.distributed.ddp_init_group(run_opts)
@@ -392,16 +396,14 @@ if __name__ == "__main__":
             "save_folder": hparams["data_prep_loc"],
             "use_fields": ["transcribed word"],
             "train_json_file": hparams["train_annotation"],
-            "dev_json_file": hparams["valid_annotation"],
-            "test_json_file": hparams["test_annotation"],
+            "val_json_file": hparams["valid_annotation"],
             "skip_prep": hparams["skip_prep"],
+            "val_chunk": hparams["val_set"],
         },
     )
 
     # Dataset IO prep: creating Dataset objects and proper encodings for phones
-    train_data, valid_data, test_data, label_encoder = dataio_prep(hparams)
-
-    print(label_encoder.lab2ind)
+    train_data, valid_data, label_encoder = dataio_prep(hparams)
 
     # Trainer initialization
     asr_brain = ASR(
@@ -414,7 +416,7 @@ if __name__ == "__main__":
 
     # Load pretrained model here
     if hasattr(asr_brain.hparams, "pretrain_dir"):
-        load_pretrain(asr_brain, hparams)
+        load_pretrain(asr_brain)
 
     # Training/validation loop
     asr_brain.fit(
@@ -427,7 +429,7 @@ if __name__ == "__main__":
 
     # Test
     asr_brain.evaluate(
-        test_data,
+        valid_data,
         min_key="PER",
-        test_loader_kwargs=hparams["test_dataloader_opts"],
+        test_loader_kwargs=hparams["valid_dataloader_opts"],
     )

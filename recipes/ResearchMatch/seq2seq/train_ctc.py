@@ -20,6 +20,8 @@ import sys
 import torch
 import logging
 import speechbrain as sb
+
+# import torchaudio
 from hyperpyyaml import load_hyperpyyaml
 from speechbrain.utils.distributed import run_on_main
 from speechbrain.utils.data_utils import undo_padding
@@ -39,19 +41,13 @@ class ASR(sb.Brain):
             if hasattr(self.hparams, "augmentation"):
                 wavs = self.hparams.augmentation(wavs, wav_lens)
 
-        feats = self.modules.wav2vec2(wavs)
+        feats = self.hparams.compute_features(wavs)
+        feats = self.modules.normalize(feats, wav_lens)
         x = self.modules.enc(feats)
 
         # output layer for ctc log-probabilities
         logits = self.modules.ctc_lin(x)
         p_ctc = self.hparams.log_softmax(logits)
-
-        e_in = self.modules.emb(phns_bos)
-        h, _ = self.modules.dec(e_in, x, wav_lens)
-
-        # output layer for seq2seq log-probabilities
-        logits = self.modules.seq_lin(h)
-        p_seq = self.hparams.log_softmax(logits)
 
         hyps = None
         if stage != sb.Stage.TRAIN:
@@ -65,28 +61,22 @@ class ASR(sb.Brain):
             # Convert best hypothesis to list
             hyps = undo_padding(best_hyps, best_lens)
 
-        return p_ctc, p_seq, wav_lens, hyps
+        return p_ctc, wav_lens, hyps
 
     def compute_objectives(self, predictions, batch, stage):
         "Given the network predictions and targets computed the NLL loss."
-        p_ctc, p_seq, wav_lens, hyps = predictions
+        p_ctc, wav_lens, hyps = predictions
 
         ids = batch.id
         phns_eos, phn_lens_eos = batch.phn_encoded_eos
         phns, phn_lens = batch.phn_encoded
 
         loss_ctc = self.hparams.ctc_cost(p_ctc, phns, wav_lens, phn_lens)
-        loss_seq = self.hparams.seq_cost(p_seq, phns_eos, phn_lens_eos)
-        loss = self.hparams.ctc_weight * loss_ctc
-        loss += (1 - self.hparams.ctc_weight) * loss_seq
+        loss = loss_ctc
 
         # Record losses for posterity
         if stage != sb.Stage.TRAIN:
             self.ctc_metrics.append(ids, p_ctc, phns, wav_lens, phn_lens)
-            self.seq_metrics.append(ids, p_seq, phns_eos, phn_lens_eos)
-            # print(phns)
-            # print(hyps)
-            # print(batch.phn_list)
             self.per_metrics.append(
                 ids, hyps, phns, None, phn_lens, self.label_encoder.decode_ndim,
             )
@@ -102,7 +92,6 @@ class ASR(sb.Brain):
     def on_stage_start(self, stage, epoch):
         "Gets called when a stage (either training, validation, test) starts."
         self.ctc_metrics = self.hparams.ctc_stats()
-        self.seq_metrics = self.hparams.seq_stats()
 
         if stage != sb.Stage.TRAIN:
             self.per_metrics = self.hparams.per_stats()
@@ -115,28 +104,17 @@ class ASR(sb.Brain):
             per = self.per_metrics.summarize("error_rate")
 
         if stage == sb.Stage.VALID:
-            old_lr_adam, new_lr_adam = self.hparams.lr_annealing_adam(per)
-            old_lr_wav2vec, new_lr_wav2vec = self.hparams.lr_annealing_wav2vec(
-                per
-            )
+            old_lr, new_lr = self.hparams.lr_annealing(per)
             sb.nnet.schedulers.update_learning_rate(
-                self.adam_optimizer, new_lr_adam
-            )
-            sb.nnet.schedulers.update_learning_rate(
-                self.wav2vec_optimizer, new_lr_wav2vec
+                self.optimizer, new_lr
             )
 
             self.hparams.train_logger.log_stats(
-                stats_meta={
-                    "epoch": epoch,
-                    "lr_adam": old_lr_adam,
-                    "lr_wav2vec": old_lr_wav2vec,
-                },
+                stats_meta={"epoch": epoch, "lr": old_lr},
                 train_stats={"loss": self.train_loss},
                 valid_stats={
                     "loss": stage_loss,
                     "ctc_loss": self.ctc_metrics.summarize("average"),
-                    "seq_loss": self.seq_metrics.summarize("average"),
                     "PER": per,
                 },
             )
@@ -152,12 +130,10 @@ class ASR(sb.Brain):
             with open(self.hparams.wer_file, "w") as w:
                 w.write("CTC loss stats:\n")
                 self.ctc_metrics.write_stats(w)
-                w.write("\nseq2seq loss stats:\n")
-                self.seq_metrics.write_stats(w)
                 w.write("\nPER stats:\n")
                 self.per_metrics.write_stats(w)
                 print(
-                    "CTC, seq2seq, and PER stats written to file",
+                    "CTC and PER stats written to file",
                     self.hparams.wer_file,
                 )
 
@@ -185,20 +161,17 @@ class ASR(sb.Brain):
         # Managing automatic mixed precision
         if self.auto_mix_prec:
 
-            self.wav2vec_optimizer.zero_grad()
-            self.adam_optimizer.zero_grad()
+            self.optimizer.zero_grad()
 
             with torch.cuda.amp.autocast():
                 outputs = self.compute_forward(batch, sb.Stage.TRAIN)
                 loss = self.compute_objectives(outputs, batch, sb.Stage.TRAIN)
 
             self.scaler.scale(loss).backward()
-            self.scaler.unscale_(self.wav2vec_optimizer)
-            self.scaler.unscale_(self.adam_optimizer)
+            self.scaler.unscale_(self.optimizer)
 
             if self.check_gradients(loss):
-                self.scaler.step(self.wav2vec_optimizer)
-                self.scaler.step(self.adam_optimizer)
+                self.scaler.step(self.optimizer)
 
             self.scaler.update()
         else:
@@ -208,28 +181,11 @@ class ASR(sb.Brain):
             loss.backward()
 
             if self.check_gradients(loss):
-                self.wav2vec_optimizer.step()
-                self.adam_optimizer.step()
+                self.optimizer.step()
 
-            self.wav2vec_optimizer.zero_grad()
-            self.adam_optimizer.zero_grad()
+            self.optimizer.zero_grad()
 
         return loss.detach().cpu()
-
-    def init_optimizers(self):
-        "Initializes the wav2vec2 optimizer and model optimizer"
-        self.wav2vec_optimizer = self.hparams.wav2vec_opt_class(
-            self.modules.wav2vec2.parameters()
-        )
-        self.adam_optimizer = self.hparams.adam_opt_class(
-            self.hparams.model.parameters()
-        )
-
-        if self.checkpointer is not None:
-            self.checkpointer.add_recoverable(
-                "wav2vec_opt", self.wav2vec_optimizer
-            )
-            self.checkpointer.add_recoverable("adam_opt", self.adam_optimizer)
 
 
 def dataio_prep(hparams):
@@ -346,25 +302,11 @@ def load_pretrain(asr_brain):
     """
     print("loading pre-trained model...")
     ckpt_path = asr_brain.hparams.pretrain_dir + "/model.ckpt"
-    wav2vec2_ckpt_path = asr_brain.hparams.pretrain_dir + "/wav2vec2.ckpt"
     weight_dict = torch.load(ckpt_path)
-    wav2vec2_weight_dict = torch.load(wav2vec2_ckpt_path)
-
-    """
-    keys = []
-    for k in weight_dict:
-        keys.append(k)
-    for k in keys:
-        if k.startswith("3") or k.startswith("4"):
-            del weight_dict[k]
-    print(weight_dict.keys())
-    """
 
     # loading weights
     asr_brain.hparams.model.load_state_dict(weight_dict, strict=False)
-    asr_brain.hparams.wav2vec2.load_state_dict(
-        wav2vec2_weight_dict, strict=False
-    )
+
 
 
 if __name__ == "__main__":
@@ -408,6 +350,7 @@ if __name__ == "__main__":
     # Trainer initialization
     asr_brain = ASR(
         modules=hparams["modules"],
+        opt_class=hparams["opt_class"],
         hparams=hparams,
         run_opts=run_opts,
         checkpointer=hparams["checkpointer"],

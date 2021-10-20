@@ -4,11 +4,13 @@
 # * Titouan Parcollet 2021
 # ################################
 
+# Validation set
+val_set: "chunk1"
+
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 4568
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-#output_folder: !ref results/wav2vec_v2_RM/<seed>
-output_folder: !ref results/pretrained_wav2vec_RM_2/<seed>
+output_folder: !ref results/pretrained_freeze_other_syllables/<val_set>/<seed>
 wer_file: !ref <output_folder>/wer.txt
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
@@ -16,31 +18,33 @@ train_log: !ref <output_folder>/train_log.txt
 # URL for the biggest Fairseq english wav2vec2 model.
 wav2vec2_hub: "facebook/wav2vec2-large-lv60"
 
+# Pretrained model dir
+pretrain_save_folder: "results/myst_small/4568/save"  
+pretrain_dir: !ref <pretrain_save_folder>/CKPT+2021-07-24+08-46-31+00
+
 # Data files
 data_folder: !PLACEHOLDER  # e.g. /path/to/TIMIT
 data_prep_loc: !ref <data_folder>/../data_prep_loc
 train_annotation: !ref <output_folder>/train.json
-valid_annotation: !ref <output_folder>/dev.json
-test_annotation: !ref <output_folder>/test.json
-# unlabeled_annotation: !ref <data_folder>/unlabeled.json
+valid_annotation: !ref <output_folder>/val.json
 skip_prep: False # Skip data preparation
 
 # Training parameters
-number_of_epochs: 50
+number_of_epochs: 40
 batch_size: 8
 lr: 0.0003
 lr_wav2vec: 0.0001
-ctc_weight: 0.2
+ctc_weight: 0.9
 sorting: ascending
 auto_mix_prec: False
 sample_rate: 16000
 
 # Model parameters
 activation: !name:torch.nn.LeakyReLU
-dnn_layers: 2
+dnn_layers: 1 
 dnn_neurons: 1024
-emb_size: 128
-dec_neurons: 256
+emb_size: 512
+dec_neurons: 512
 freeze_wav2vec: False
 
 # Outputs
@@ -58,15 +62,9 @@ eos_threshold: 1.5
 # Dataloader options
 train_dataloader_opts:
     batch_size: !ref <batch_size>
-    # num_workers: !ref <batch_size>
 
 valid_dataloader_opts:
     batch_size: !ref <batch_size>
-    # num_workers: !ref <batch_size>
-
-test_dataloader_opts:
-    batch_size: 1
-    # num_workers: !ref <batch_size>
 
 augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
     sample_rate: !ref <sample_rate>
@@ -85,7 +83,9 @@ wav2vec2: !new:speechbrain.lobes.models.huggingface_wav2vec.HuggingFaceWav2Vec2
     source: !ref <wav2vec2_hub>
     output_norm: True
     freeze: !ref <freeze_wav2vec>
+    pretrain: False
     save_path: !ref <save_folder>/wav2vec2_checkpoint
+    num_hidden_layers: 16
 
 #####
 # Uncomment this block if you prefer to use a Fairseq pretrained model instead
@@ -135,6 +135,34 @@ ctc_cost: !name:speechbrain.nnet.losses.ctc_loss
 seq_cost: !name:speechbrain.nnet.losses.nll_loss
     label_smoothing: 0.1
 
+# Scorer
+#ngramlm_scorer: !new:speechbrain.decoders.scorer.NGramLMScorer
+#    lm_path: "ngram_lm/lm_syllables_kenlm_6gram.bin"
+#    vocab_size: !ref <output_neurons>
+#    token_list: [
+#        '<blank>', '<s>', '</s>', 'N', 'ER', 'JH', 'IY',
+#        'OW', 'IH', 'T', 'S', 'L', 'R', 'AH', 'G', 'NG',
+#        'DH', 'W', 'AE', 'K', 'Z', 'M', 'D', 'EY', 'CH',
+#        'OY', 'P', 'UW', 'AO', 'TH', 'AA', 'F', 'Y', 'HH',
+#        'V', 'SH', 'AW', 'UH', 'ZH', 'B', 'AY', 'EH', 'NONE', 'NONE'
+#    ]
+
+ctc_scorer: !new:speechbrain.decoders.scorer.CTCScorer
+    eos_index: !ref <eos_index>
+    blank_index: !ref <blank_index>
+    ctc_fc: !ref <ctc_lin>
+
+coverage_scorer: !new:speechbrain.decoders.scorer.CoverageScorer
+    vocab_size: !ref <output_neurons>
+
+scorer: !new:speechbrain.decoders.scorer.ScorerBuilder
+    scorer_beam_scale: 2.0
+    #partial_scorers: [!ref <ctc_scorer>, !ref <ngramlm_scorer>]
+    partial_scorers: [!ref <ctc_scorer>]
+    weights:
+        ctc: 0.9
+        #ngramlm: 0.5
+
 greedy_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNGreedySearcher
     embedding: !ref <emb>
     decoder: !ref <dec>
@@ -148,15 +176,14 @@ beam_searcher: !new:speechbrain.decoders.seq2seq.S2SRNNBeamSearcher
     embedding: !ref <emb>
     decoder: !ref <dec>
     linear: !ref <seq_lin>
-    ctc_linear: !ref <ctc_lin>
     bos_index: !ref <bos_index>
     eos_index: !ref <eos_index>
-    blank_index: !ref <blank_index>
     min_decode_ratio: !ref <min_decode_ratio>
     max_decode_ratio: !ref <max_decode_ratio>
     beam_size: !ref <beam_size>
+    vocab_size: !ref <output_neurons>
     temperature: 1.15
-    ctc_weight: 0.60
+    scorer: !ref <scorer>
 
 model: !new:torch.nn.ModuleList
     - [!ref <enc>, !ref <emb>, !ref <dec>, !ref <ctc_lin>, !ref <seq_lin>]
