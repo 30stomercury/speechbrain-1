@@ -140,11 +140,6 @@ class Fbank(torch.nn.Module):
 
             STFT = self.compute_STFT(wav)
             mag = spectral_magnitude(STFT)
-
-            if self.vtlp:
-                x = [0.9, 0.925, 0.95, 0.975, 1.   , 1.025, 1.05 , 1.075, 1.1  , 1.125, 1.15 , 1.175, 1.2  ]
-                self.compute_fbanks.vtln_warp_factor = random.choice(x)
-
             fbanks = self.compute_fbanks(mag)
 
             if self.deltas:

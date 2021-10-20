@@ -1,16 +1,6 @@
-# TIMIT ASR with seq2seq models.
-This folder contains the scripts to train a seq2seq RNNN-based system using TIMIT.
-TIMIT is a speech dataset available from LDC: https://catalog.ldc.upenn.edu/LDC93S1
-
 # How to run
-python train.py train/train.yaml
+# Fine-tune based on a pretrained model (wav2vec, wav2vec_small or seq2seq)
+`python3 train_with_wav2vec2.py hparams/train_with_wav2vec2_ngram.yaml --data_folder path/to/Syllables_rep --val_set chunki`
 
-# Results
-
-| Release | hyperparams file | Val. PER | Test PER | Model link | GPUs |
-|:-------------:|:---------------------------:| -----:| -----:| --------:| :-----------:|
-| 20-05-22 | train.yaml |  12.50 | 14.07 | https://drive.google.com/drive/folders/1OOieZsNJiLSUSjxidmXg0ywYDJCw0dfm?usp=sharing | 1xV100 16GB |
-
-# Training Time
-About 2 min and 00 sec for each epoch with a TESLA V100.
-
+# Compute average wer across 4 chunks
+`python3 compute_ave_wer.py --output_folder /your/save/folder # e.g., --output_folder ~/workspace/results/pretrained_wav2vec_syllables_1.2/`
