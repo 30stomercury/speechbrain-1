@@ -9,7 +9,7 @@
 # Seed needs to be set at top of yaml, before objects with parameters are made
 seed: 1234
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/CRDNN_seq2seq/<seed>
+output_folder: !ref results/CRDNN_seq2seq_nmel_80_2/<seed>
 wer_file: !ref <output_folder>/wer.txt
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
@@ -31,13 +31,13 @@ sorting: ascending
 # Feature parameters
 sample_rate: 16000
 n_fft: 400
-n_mels: 40
+n_mels: 80
 
 # Model parameters
 activation: !name:torch.nn.LeakyReLU
 dropout: 0.15
 cnn_blocks: 2
-cnn_channels: (128, 256)
+cnn_channels: (32, 64) #(128, 256)
 cnn_kernelsize: (3, 3)
 rnn_layers: 4
 rnn_neurons: 512
@@ -175,7 +175,7 @@ modules:
     normalize: !ref <normalize>
 
 # Compile the encoder (to speed up training)
-jit_module_keys: [enc]
+#jit_module_keys: [enc]
 
 checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
     checkpoints_dir: !ref <save_folder>
