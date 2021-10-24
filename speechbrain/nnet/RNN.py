@@ -152,6 +152,8 @@ class RNN(torch.nn.Module):
 
         # Pack sequence for proper RNN handling of padding
         if mask is not None:
+            mask = mask[..., :1]
+            # Make sure the last dimension is 1
             if mask.ndim == 4:
                 mask = mask[:, :, 0]
             lengths = torch.sum(~mask, dim=1).squeeze(-1).cpu()
@@ -267,6 +269,7 @@ class LSTM(torch.nn.Module):
 
         # Pack sequence for proper RNN handling of padding
         if mask is not None:
+            mask = mask[..., :1]
             if mask.ndim == 4:
                 mask = mask[:, :, 0]
             lengths = torch.sum(~mask, dim=1).squeeze(-1).cpu()
@@ -382,6 +385,7 @@ class GRU(torch.nn.Module):
 
         # Pack sequence for proper RNN handling of padding
         if mask is not None:
+            mask = mask[..., :1]
             if mask.ndim == 4:
                 mask = mask[:, :, 0]
             lengths = torch.sum(~mask, dim=1).squeeze(-1).cpu()
@@ -1097,8 +1101,10 @@ class LiGRU(torch.nn.Module):
         if self.reshape:
             if x.ndim == 4:
                 x = x.reshape(x.shape[0], x.shape[1], x.shape[2] * x.shape[3])
-        if mask is not None and mask.ndim == 4:
-            mask = mask[:, :, 0]
+        if mask is not None:
+            mask = mask[..., :1]
+            if mask.ndim == 4:
+                mask = mask[:, :, 0]
 
         # run ligru
         output, hh, mask = self._forward_ligru(x, hx=hx, mask=mask)
